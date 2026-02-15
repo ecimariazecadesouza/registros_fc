@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Student, AttendanceStatus, ClassAttendance, StudentStats, EnrollmentStatus, PendingChange, LessonSubjectMap, LessonTopicMap, Holiday } from '../types';
 import { STATUS_COLORS, ENROLLMENT_COLORS } from '../constants';
@@ -141,26 +142,32 @@ const AttendanceGrid: React.FC<AttendanceGridProps> = ({
       {/* Scrollable Container */}
       <div className="overflow-auto custom-scrollbar flex-1 relative min-h-0">
         <table className="min-w-max border-collapse text-sm text-left">
-          <thead className="bg-slate-800 text-white sticky top-0 z-20">
+          <thead className="bg-slate-800 text-white md:sticky top-0 z-20">
             <tr>
+              {/* INDEX COLUMN - Sticky only on MD+ */}
               <th 
-                className="sticky bg-slate-800 p-3 border-b border-slate-700 text-center font-medium z-30"
+                className="md:sticky bg-slate-800 p-3 border-b border-slate-700 text-center font-medium z-30"
                 style={{ left: 0, minWidth: IDX_WIDTH }}
               >
                 #
               </th>
+
+              {/* NAME COLUMN - Sticky only on MD+ */}
               <th 
-                className="sticky bg-slate-800 p-3 border-b border-slate-700 font-medium z-30"
-                style={{ left: NAME_LEFT, minWidth: NAME_WIDTH }}
+                className="md:sticky bg-slate-800 p-3 border-b border-slate-700 font-medium z-30 min-w-[200px] md:min-w-[250px]"
+                style={{ left: NAME_LEFT }}
               >
                 Nome do Protagonista
               </th>
+
+              {/* STATUS COLUMN - Sticky only on MD+ */}
                <th 
-                className="sticky bg-slate-800 p-3 border-b border-slate-700 font-medium border-r border-slate-600 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.3)] z-30"
+                className="md:sticky bg-slate-800 p-3 border-b border-slate-700 font-medium border-r border-slate-600 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.3)] z-30"
                 style={{ left: STATUS_LEFT, minWidth: STATUS_WIDTH }}
               >
                 Situação
               </th>
+
               {dates.map((date) => {
                 const { day, weekDay } = getDayLabel(date);
                 const isWeekend = weekDay === 'sáb' || weekDay === 'dom';
@@ -203,7 +210,7 @@ const AttendanceGrid: React.FC<AttendanceGridProps> = ({
 
                               {/* Lesson Config Popover */}
                               {isOpen && (
-                                  <div ref={popoverRef} className="absolute top-full left-1/2 -translate-x-1/2 mt-2 bg-white rounded-lg shadow-xl border border-gray-200 p-4 z-50 w-80 text-slate-800 animate-in fade-in zoom-in-95 duration-100 cursor-default">
+                                  <div ref={popoverRef} className="fixed md:absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 md:translate-y-0 md:top-full md:mt-2 bg-white rounded-lg shadow-xl border border-gray-200 p-4 z-50 w-80 text-slate-800 animate-in fade-in zoom-in-95 duration-100 cursor-default">
                                       <h4 className="text-xs font-bold text-slate-500 mb-3 text-left uppercase flex justify-between items-center">
                                           <span>Configuração do Dia</span>
                                           <button onClick={() => setOpenConfigDate(null)} className="text-slate-400 hover:text-rose-500"><X size={14}/></button>
@@ -288,10 +295,10 @@ const AttendanceGrid: React.FC<AttendanceGridProps> = ({
                   </th>
                 );
               })}
-              {/* Summary Columns Header */}
-              <th className="sticky right-[120px] bg-slate-700 p-2 min-w-[60px] text-center text-xs font-semibold border-l border-slate-600 z-20">Faltas</th>
-              <th className="sticky right-[60px] bg-slate-700 p-2 min-w-[60px] text-center text-xs font-semibold z-20">Pres.</th>
-              <th className="sticky right-0 bg-slate-700 p-2 min-w-[60px] text-center text-xs font-semibold z-20">% Mês</th>
+              {/* Summary Columns Header - Sticky only on MD+ */}
+              <th className="md:sticky right-[120px] bg-slate-700 p-2 min-w-[60px] text-center text-xs font-semibold border-l border-slate-600 z-20">Faltas</th>
+              <th className="md:sticky right-[60px] bg-slate-700 p-2 min-w-[60px] text-center text-xs font-semibold z-20">Pres.</th>
+              <th className="md:sticky right-0 bg-slate-700 p-2 min-w-[60px] text-center text-xs font-semibold z-20">% Mês</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -301,20 +308,23 @@ const AttendanceGrid: React.FC<AttendanceGridProps> = ({
 
               return (
                 <tr key={student.id} className="hover:bg-blue-50 transition-colors group">
+                  {/* INDEX CELL */}
                   <td 
-                    className="sticky bg-white group-hover:bg-blue-50 p-2 text-center text-gray-500 border-r border-gray-100 font-mono text-xs z-10"
+                    className="md:sticky bg-white group-hover:bg-blue-50 p-2 text-center text-gray-500 border-r border-gray-100 font-mono text-xs z-10"
                     style={{ left: 0 }}
                   >
                     {(index + 1).toString().padStart(2, '0')}
                   </td>
+
+                  {/* NAME CELL */}
                   <td 
-                    className="sticky bg-white group-hover:bg-blue-50 p-2 border-r border-gray-200 z-10"
+                    className="md:sticky bg-white group-hover:bg-blue-50 p-2 border-r border-gray-200 z-10"
                     style={{ left: NAME_LEFT }}
                   >
                     <div className="flex items-center gap-2">
                         <button 
                             onClick={() => onSelectStudent(student)}
-                            className="flex-1 text-left focus:outline-none truncate"
+                            className="flex-1 text-left focus:outline-none truncate max-w-[200px]"
                         >
                           <span className="font-medium text-slate-700 block truncate" title={student.name}>{student.name}</span>
                         </button>
@@ -327,11 +337,12 @@ const AttendanceGrid: React.FC<AttendanceGridProps> = ({
                         )}
                     </div>
                   </td>
+
+                  {/* STATUS CELL */}
                   <td 
-                    className="sticky bg-white group-hover:bg-blue-50 p-2 border-r border-gray-200 z-10 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.1)] text-center"
+                    className="md:sticky bg-white group-hover:bg-blue-50 p-2 border-r border-gray-200 z-10 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.1)] text-center"
                     style={{ left: STATUS_LEFT }}
                   >
-                     {/* Replace static span with select for quick editing */}
                      <div className="relative inline-block w-full">
                          <select 
                              value={student.status}
@@ -342,9 +353,9 @@ const AttendanceGrid: React.FC<AttendanceGridProps> = ({
                                  <option key={status} value={status}>{status}</option>
                              ))}
                          </select>
-                         {/* Optional: Add a tiny indicator or leave standard arrow (appearance-none hides it) */}
                      </div>
                   </td>
+
                   {dates.map((date) => {
                     const studentRecord = attendance[student.id] || {};
                     const statuses = studentRecord[date] || [];
@@ -399,14 +410,14 @@ const AttendanceGrid: React.FC<AttendanceGridProps> = ({
                     );
                   })}
                   
-                  {/* Summary Columns Body */}
-                  <td className="sticky right-[120px] bg-white group-hover:bg-blue-50 p-2 text-center text-sm font-medium text-rose-600 border-l border-gray-200 z-10">
+                  {/* Summary Columns Body - Sticky only on MD+ */}
+                  <td className="md:sticky right-[120px] bg-white group-hover:bg-blue-50 p-2 text-center text-sm font-medium text-rose-600 border-l border-gray-200 z-10">
                     {stats.absent}
                   </td>
-                  <td className="sticky right-[60px] bg-white group-hover:bg-blue-50 p-2 text-center text-sm font-medium text-emerald-600 z-10">
+                  <td className="md:sticky right-[60px] bg-white group-hover:bg-blue-50 p-2 text-center text-sm font-medium text-emerald-600 z-10">
                     {stats.present}
                   </td>
-                  <td className={`sticky right-0 bg-white group-hover:bg-blue-50 p-2 text-center text-sm font-bold z-10 ${isLowAttendance ? 'text-rose-600' : 'text-slate-700'}`}>
+                  <td className={`md:sticky right-0 bg-white group-hover:bg-blue-50 p-2 text-center text-sm font-bold z-10 ${isLowAttendance ? 'text-rose-600' : 'text-slate-700'}`}>
                     {stats.totalLessons === 0 ? '-' : `${stats.percentage.toFixed(0)}%`}
                   </td>
                 </tr>
