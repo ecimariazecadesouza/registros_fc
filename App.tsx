@@ -1,10 +1,11 @@
-import React, { useState, useMemo, useEffect } from 'react';
+
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { 
   CURRENT_YEAR, 
   MONTH_NAMES,
   BIMESTERS
 } from './constants';
-import { Student, ClassAttendance, AttendanceStatus, ClassGroup, EnrollmentStatus, BimesterConfig, PendingChange, LessonSubjectMap, LessonTopicMap, Holiday } from './types';
+import { Student, ClassAttendance, AttendanceStatus, ClassGroup, EnrollmentStatus, BimesterConfig, PendingChange, LessonSubjectMap, LessonTopicMap, Holiday, ApiData } from './types';
 import AttendanceGrid from './components/AttendanceGrid';
 import StudentDetailModal from './components/StudentDetailModal';
 import GlobalDashboard from './components/GlobalDashboard';
@@ -13,9 +14,12 @@ import StudentManager from './components/StudentManager';
 import SettingsModal from './components/SettingsModal';
 import SchoolConfigModal from './components/SchoolConfigModal';
 import { api, getApiUrl, transformAttendanceFromApi, transformConfigFromApi } from './services/api';
-import { ChevronLeft, ChevronRight, Plus, GraduationCap, School, X, Settings, Filter, CalendarRange, LayoutDashboard, Users, Pencil, Trash2, Check, Loader2, Database, Save, AlertCircle, BookOpen, FileBarChart, Menu } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, GraduationCap, School, X, Settings, Filter, CalendarRange, LayoutDashboard, Users, Pencil, Trash2, Check, Loader2, Database, Save, AlertCircle, BookOpen, FileBarChart, Menu, Wifi, WifiOff, RefreshCw } from 'lucide-react';
 
 type ViewMode = 'CLASS' | 'DASHBOARD' | 'STUDENTS' | 'REPORTS';
+
+const DATA_CACHE_KEY = 'frequencia_escolar_data_cache';
+const QUEUE_CACHE_KEY = 'frequencia_escolar_offline_queue';
 
 const App: React.FC = () => {
   // --- STATE ---
@@ -26,6 +30,7 @@ const App: React.FC = () => {
   const [isSchoolConfigOpen, setIsSchoolConfigOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Mobile Menu State
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   // Data State
   const [classes, setClasses] = useState<ClassGroup[]>([]);
@@ -44,7 +49,7 @@ const App: React.FC = () => {
   const [registeredSubjects, setRegisteredSubjects] = useState<string[]>([]);
   const [holidays, setHolidays] = useState<Holiday[]>([]);
 
-  // Pending Changes State (For Manual Save)
+  // Pending Changes State (For Manual Save & Offline Queue)
   const [pendingChanges, setPendingChanges] = useState<PendingChange[]>([]);
 
   // Navigation State
@@ -76,7 +81,79 @@ const App: React.FC = () => {
     );
   };
 
-  // --- INITIALIZATION ---
+  // --- NETWORK LISTENERS ---
+  useEffect(() => {
+      const handleOnline = () => setIsOnline(true);
+      const handleOffline = () => setIsOnline(false);
+
+      window.addEventListener('online', handleOnline);
+      window.addEventListener('offline', handleOffline);
+
+      return () => {
+          window.removeEventListener('online', handleOnline);
+          window.removeEventListener('offline', handleOffline);
+      };
+  }, []);
+
+  // --- PERSISTENCE: QUEUE ---
+  // Load queue on startup
+  useEffect(() => {
+      const savedQueue = localStorage.getItem(QUEUE_CACHE_KEY);
+      if (savedQueue) {
+          try {
+              const parsed = JSON.parse(savedQueue);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                  setPendingChanges(parsed);
+              }
+          } catch (e) {
+              console.error("Error loading offline queue", e);
+          }
+      }
+  }, []);
+
+  // Save queue whenever it changes
+  useEffect(() => {
+      localStorage.setItem(QUEUE_CACHE_KEY, JSON.stringify(pendingChanges));
+  }, [pendingChanges]);
+
+  // --- DATA LOADING & CACHING ---
+  const processApiData = useCallback((data: ApiData) => {
+    if (data.classes) {
+        setClasses(sortClasses(data.classes));
+    }
+    if (data.students) setAllStudents(data.students);
+    
+    if (data.bimesters && data.bimesters.length > 0) {
+        setBimesters(data.bimesters);
+    }
+    
+    if (data.attendance) {
+        setAttendance(transformAttendanceFromApi(data.attendance));
+    }
+
+    if (data.config) {
+        const configMap = transformConfigFromApi(data.config);
+        const rawConfig = configMap['dailyLessonCounts'] || {};
+        const normalizedConfig: Record<string, number[]> = {};
+        
+        Object.keys(rawConfig).forEach(date => {
+            const val = rawConfig[date];
+            if (typeof val === 'number') {
+                normalizedConfig[date] = Array.from({ length: val }, (_, i) => i);
+            } else if (Array.isArray(val)) {
+                normalizedConfig[date] = val;
+            }
+        });
+        
+        setDailyLessonConfig(normalizedConfig);
+
+        if (configMap['lessonSubjects']) setLessonSubjects(configMap['lessonSubjects']);
+        if (configMap['lessonTopics']) setLessonTopics(configMap['lessonTopics']);
+        if (configMap['registeredSubjects']) setRegisteredSubjects(configMap['registeredSubjects']);
+        if (configMap['holidays']) setHolidays(configMap['holidays']);
+    }
+  }, []);
+
   const loadData = async () => {
     if (!getApiUrl()) {
         setIsSettingsOpen(true);
@@ -86,57 +163,47 @@ const App: React.FC = () => {
 
     setLoading(true);
     try {
+        // Try to fetch fresh data
         const data = await api.getData();
+        processApiData(data);
         
-        if (data.classes) {
-            setClasses(sortClasses(data.classes));
-        }
-        if (data.students) setAllStudents(data.students);
-        
-        // Only override defaults if API actually returns data
-        if (data.bimesters && data.bimesters.length > 0) {
-            setBimesters(data.bimesters);
-        }
-        
-        if (data.attendance) {
-            setAttendance(transformAttendanceFromApi(data.attendance));
-        }
+        // Cache fresh data
+        localStorage.setItem(DATA_CACHE_KEY, JSON.stringify(data));
 
-        if (data.config) {
-            const configMap = transformConfigFromApi(data.config);
-            // Handle legacy format (number) vs new format (number[])
-            const rawConfig = configMap['dailyLessonCounts'] || {};
-            const normalizedConfig: Record<string, number[]> = {};
-            
-            Object.keys(rawConfig).forEach(date => {
-                const val = rawConfig[date];
-                if (typeof val === 'number') {
-                    // Legacy: convert count to array [0, 1, ..., n-1]
-                    normalizedConfig[date] = Array.from({ length: val }, (_, i) => i);
-                } else if (Array.isArray(val)) {
-                    normalizedConfig[date] = val;
-                }
-            });
-            
-            setDailyLessonConfig(normalizedConfig);
-
-            if (configMap['lessonSubjects']) setLessonSubjects(configMap['lessonSubjects']);
-            if (configMap['lessonTopics']) setLessonTopics(configMap['lessonTopics']);
-            if (configMap['registeredSubjects']) setRegisteredSubjects(configMap['registeredSubjects']);
-            if (configMap['holidays']) setHolidays(configMap['holidays']);
-        }
-
-        // Set default class if not set
+        // Initial Selection
         if (!selectedClassId && data.classes && data.classes.length > 0) {
-            // Re-sort locally to be sure we pick the first alphabetical one
             const sorted = sortClasses(data.classes);
             setSelectedClassId(sorted[0].id);
         }
 
     } catch (err) {
-        console.error(err);
-        alert("Erro ao carregar dados. Verifique a URL do Script nas configurações.");
-        setIsSettingsOpen(true);
+        console.error("Failed to load from API, trying cache", err);
+        
+        // Fallback to cache if offline or error
+        const cached = localStorage.getItem(DATA_CACHE_KEY);
+        if (cached) {
+            try {
+                const data = JSON.parse(cached);
+                processApiData(data);
+                
+                if (!selectedClassId && data.classes && data.classes.length > 0) {
+                    const sorted = sortClasses(data.classes);
+                    setSelectedClassId(sorted[0].id);
+                }
+                
+                if (!navigator.onLine) {
+                     // Silent success for offline mode
+                } else {
+                    alert("Erro ao conectar ao servidor. Carregando dados salvos localmente (Cache).");
+                }
+            } catch (e) {
+                console.error("Cache corrupted", e);
+                alert("Erro ao carregar dados. Verifique sua conexão.");
+            }
+        } else {
+            alert("Erro ao carregar dados e nenhum cache encontrado. Verifique a URL do Script e sua conexão.");
+            setIsSettingsOpen(true);
+        }
     } finally {
         setLoading(false);
     }
@@ -144,7 +211,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Close sidebar when changing view on mobile
   useEffect(() => {
@@ -193,11 +260,17 @@ const App: React.FC = () => {
     setLessonSubjects(newSubjects);
     setLessonTopics(newTopics);
 
-    // Persist Config Immediately
+    // Persist Config
     try {
-        await api.saveConfig('dailyLessonCounts', newConfig);
-        await api.saveConfig('lessonSubjects', newSubjects);
-        await api.saveConfig('lessonTopics', newTopics);
+        if (isOnline) {
+             await api.saveConfig('dailyLessonCounts', newConfig);
+             await api.saveConfig('lessonSubjects', newSubjects);
+             await api.saveConfig('lessonTopics', newTopics);
+        } else {
+            // For config, we don't have a complex queue yet, just a warning for now
+            // Ideally config should also be queued, but for simplicity we rely on local state until next sync
+             console.warn("Offline: Config saved locally but not synced.");
+        }
     } catch (e) {
         console.error("Failed to save config", e);
     }
@@ -205,12 +278,12 @@ const App: React.FC = () => {
 
   const handleSaveSchoolSubjects = async (subjects: string[]) => {
       setRegisteredSubjects(subjects);
-      await api.saveConfig('registeredSubjects', subjects);
+      if (isOnline) await api.saveConfig('registeredSubjects', subjects);
   };
 
   const handleSaveHolidays = async (newHolidays: Holiday[]) => {
       setHolidays(newHolidays);
-      await api.saveConfig('holidays', newHolidays);
+      if (isOnline) await api.saveConfig('holidays', newHolidays);
   }
 
   const handleToggleStatus = (studentId: string, date: string, lessonIndex: number, forcedStatus?: AttendanceStatus) => {
@@ -240,7 +313,7 @@ const App: React.FC = () => {
         else nextStatus = AttendanceStatus.UNDEFINED;
     }
 
-    // Don't update if it's the same (optimization for bulk updates)
+    // Don't update if it's the same
     if (currentDailyStatuses[lessonIndex] === nextStatus) return;
 
     // 2. Update Local State (UI)
@@ -255,13 +328,13 @@ const App: React.FC = () => {
         }
     }));
 
-    // Get subject and topic for this lesson to populate the log
+    // Get subject and topic
     const subject = lessonSubjects[date]?.[lessonIndex] || '';
     const topic = lessonTopics[date]?.[lessonIndex] || '';
 
     // 3. Queue Change
     setPendingChanges(prev => {
-        // Remove existing pending change for same cell if exists
+        // Remove existing pending change for same cell if exists (deduplication)
         const filtered = prev.filter(c => 
             !(c.studentId === studentId && c.date === date && c.lessonIndex === lessonIndex)
         );
@@ -270,14 +343,12 @@ const App: React.FC = () => {
   };
 
   const handleBulkStatusUpdate = (date: string, lessonIndex: number, status: AttendanceStatus) => {
-      // Apply status to all visible students who are UNDEFINED
       classStudents.forEach(student => {
-          if (student.status !== EnrollmentStatus.ACTIVE) return; // Skip non-active
+          if (student.status !== EnrollmentStatus.ACTIVE) return; 
 
           const studentRecord = attendance[student.id] || {};
           const currentStatus = (studentRecord[date] && studentRecord[date][lessonIndex]) || AttendanceStatus.UNDEFINED;
 
-          // Only overwrite if it's undefined
           if (currentStatus === AttendanceStatus.UNDEFINED) {
               handleToggleStatus(student.id, date, lessonIndex, status);
           }
@@ -286,41 +357,59 @@ const App: React.FC = () => {
 
   const handleSaveChanges = async () => {
       if (pendingChanges.length === 0) return;
-      setIsSaving(true);
       
-      try {
-          const promises = pendingChanges.map(change => 
-             api.saveAttendance(
-                 change.studentId, 
-                 change.date, 
-                 change.lessonIndex, 
-                 change.status,
-                 change.subject,
-                 change.topic 
-             )
-          );
-          
-          await Promise.all(promises);
-          setPendingChanges([]); // Clear queue on success
-      } catch (error) {
-          console.error("Erro ao salvar", error);
-          alert("Houve um erro ao salvar algumas alterações. Tente novamente.");
-      } finally {
-          setIsSaving(false);
+      if (!isOnline) {
+          alert("Você está OFFLINE. \n\nSuas alterações foram salvas no dispositivo e permanecerão na fila. Clique em 'Sincronizar' quando a conexão retornar.");
+          return;
+      }
+
+      setIsSaving(true);
+      const changesToSync = [...pendingChanges];
+      const failedChanges: PendingChange[] = [];
+
+      // Process strictly one by one to ensure consistency
+      for (const change of changesToSync) {
+          try {
+              await api.saveAttendance(
+                  change.studentId, 
+                  change.date, 
+                  change.lessonIndex, 
+                  change.status,
+                  change.subject,
+                  change.topic 
+              );
+          } catch (error) {
+              console.error("Sync error", error);
+              failedChanges.push(change);
+          }
+      }
+      
+      setPendingChanges(failedChanges);
+      setIsSaving(false);
+
+      if (failedChanges.length === 0) {
+          // Success
+      } else {
+          alert(`Houve erro ao sincronizar ${failedChanges.length} registros. Eles permanecerão na fila.`);
       }
   };
 
   // Student Management Handlers
   const handleAddStudent = async (student: Student) => {
-    // Ensure status is set
     const s = { ...student, status: student.status || EnrollmentStatus.ACTIVE };
     setAllStudents(prev => [...prev, s]);
-    await api.saveStudent(s);
+    if (isOnline) {
+        try { await api.saveStudent(s); } catch(e) { alert("Erro ao salvar online. Verifique conexão."); }
+    } else {
+        alert("Aluno adicionado localmente. Sincronize quando estiver online.");
+    }
   };
 
   const handleUpdateStudent = async (updatedStudent: Student) => {
     setAllStudents(prev => prev.map(s => s.id === updatedStudent.id ? updatedStudent : s));
-    await api.saveStudent(updatedStudent);
+    if (isOnline) {
+        try { await api.saveStudent(updatedStudent); } catch(e) { alert("Erro ao salvar online."); }
+    }
   };
 
   const handleUpdateStudentStatus = async (studentId: string, newStatus: EnrollmentStatus) => {
@@ -332,28 +421,27 @@ const App: React.FC = () => {
   };
 
   const handleDeleteStudent = async (id: string) => {
-    // Store previous state for rollback if needed
     const previousStudents = [...allStudents];
     const previousAttendance = { ...attendance };
     
-    // Optimistic Update: Remove student from list
     setAllStudents(prev => prev.filter(s => s.id !== id));
-    
-    // Optimistic Update: Remove student attendance records
     setAttendance(prev => {
         const newAttendance = { ...prev };
         delete newAttendance[id];
         return newAttendance;
     });
 
-    try {
-        await api.deleteStudent(id);
-    } catch (error) {
-        console.error("Erro ao excluir aluno", error);
-        alert("Não foi possível excluir o aluno. Verifique sua conexão.");
-        // Rollback
-        setAllStudents(previousStudents);
-        setAttendance(previousAttendance);
+    if (isOnline) {
+        try {
+            await api.deleteStudent(id);
+        } catch (error) {
+            console.error("Erro ao excluir", error);
+            alert("Erro ao excluir online. Revertendo localmente.");
+            setAllStudents(previousStudents);
+            setAttendance(previousAttendance);
+        }
+    } else {
+        alert("Atenção: A exclusão foi feita localmente. Se você recarregar a página antes de conectar, o aluno voltará.");
     }
   };
 
@@ -366,12 +454,15 @@ const App: React.FC = () => {
       }));
       setAllStudents(prev => [...prev, ...newStudents]);
       
-      // Batch save
-      await api.syncAll({
-        students: [...allStudents, ...newStudents], // Full sync safer for simplicity
-        classes,
-        bimesters
-      });
+      if (isOnline) {
+          await api.syncAll({
+            students: [...allStudents, ...newStudents], 
+            classes,
+            bimesters
+          });
+      } else {
+          alert("Alunos adicionados localmente. Sincronização pendente.");
+      }
   };
 
   const handleCreateClass = async () => {
@@ -381,7 +472,6 @@ const App: React.FC = () => {
       name: newEntryName,
     };
     
-    // Add and Sort
     const updatedClasses = sortClasses([...classes, newClass]);
     setClasses(updatedClasses);
     
@@ -389,7 +479,7 @@ const App: React.FC = () => {
     setViewMode('CLASS'); 
     setNewEntryName('');
     setIsAddingClass(false);
-    await api.saveClass(newClass);
+    if(isOnline) await api.saveClass(newClass);
   };
 
   const handleStartEditClass = (c: ClassGroup) => {
@@ -405,12 +495,10 @@ const App: React.FC = () => {
     const updated = { ...cls, name: editClassName };
     const updatedList = classes.map(c => c.id === editingClassId ? updated : c);
     
-    // Update and Sort
     setClasses(sortClasses(updatedList));
-    
     setEditingClassId(null);
     setEditClassName('');
-    await api.saveClass(updated);
+    if(isOnline) await api.saveClass(updated);
   };
 
   const promptDeleteClass = (c: ClassGroup) => {
@@ -421,38 +509,32 @@ const App: React.FC = () => {
     if (!classToDelete) return;
     const id = classToDelete.id;
     
-    // Identify students to remove
     const studentsInClass = allStudents.filter(s => String(s.classId) === String(id));
     const studentIdsToRemove = studentsInClass.map(s => s.id);
 
-    // 1. Navigation handling: If deleting the currently viewed class, switch view FIRST
     if (String(selectedClassId) === String(id)) {
-        setSelectedClassId(''); // Clear selection
+        setSelectedClassId(''); 
         setViewMode('DASHBOARD');
     }
 
-    // 2. Optimistic UI Updates
     setClasses(prev => prev.filter(c => String(c.id) !== String(id)));
-    setAllStudents(prev => prev.filter(s => String(s.classId) !== String(id))); // Remove completely from list
+    setAllStudents(prev => prev.filter(s => String(s.classId) !== String(id))); 
     
-    // Remove attendance for deleted students
     setAttendance(prev => {
         const newAtt = { ...prev };
         studentIdsToRemove.forEach(sid => delete newAtt[sid]);
         return newAtt;
     });
 
-    // Close Modal immediately
     setClassToDelete(null);
     
-    // 3. API Call
-    try {
-        await api.deleteClass(id);
-    } catch (error) {
-        console.error("Erro ao excluir turma", error);
-        alert("Ocorreu um erro ao comunicar com o servidor. Recarregue a página para verificar a integridade dos dados.");
-        // If failed, reload to ensure state consistency
-        loadData();
+    if (isOnline) {
+        try {
+            await api.deleteClass(id);
+        } catch (error) {
+            console.error("Erro ao excluir", error);
+            loadData();
+        }
     }
   };
 
@@ -463,7 +545,7 @@ const App: React.FC = () => {
   };
 
   const handleSaveBimesters = async () => {
-      await api.saveBimester(bimesters);
+      if (isOnline) await api.saveBimester(bimesters);
       setIsConfigBimesters(false);
   }
 
@@ -471,7 +553,7 @@ const App: React.FC = () => {
       return (
           <div className="h-screen w-screen flex flex-col items-center justify-center bg-slate-50 gap-4">
               <Loader2 className="animate-spin text-indigo-600" size={48} />
-              <p className="text-slate-500 font-medium">Carregando dados da nuvem...</p>
+              <p className="text-slate-500 font-medium">Carregando dados...</p>
           </div>
       );
   }
@@ -521,6 +603,12 @@ const App: React.FC = () => {
                     <X size={20} />
                 </button>
             </div>
+        </div>
+
+        {/* Network Status Indicator */}
+        <div className={`text-xs px-4 py-2 font-bold flex items-center gap-2 transition-colors ${isOnline ? 'bg-emerald-900/30 text-emerald-400' : 'bg-rose-900/30 text-rose-400'}`}>
+             {isOnline ? <Wifi size={14}/> : <WifiOff size={14}/>}
+             {isOnline ? 'CONECTADO' : 'MODO OFFLINE'}
         </div>
 
         <div className="flex-1 overflow-y-auto p-3 space-y-1 custom-scrollbar">
@@ -593,7 +681,6 @@ const App: React.FC = () => {
                                 <GraduationCap size={16} className="shrink-0" />
                                 <span className="truncate text-sm font-medium">{c.name}</span>
                             </button>
-                            {/* Improved Action Buttons: Z-index adjusted, stops propagation */}
                             <div className={`flex items-center gap-1 ${selectedClassId === c.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity z-10`}>
                                  <button 
                                     onClick={(e) => { 
@@ -675,7 +762,6 @@ const App: React.FC = () => {
         <header className="bg-white border-b border-gray-200 p-4 flex flex-wrap items-center justify-between gap-4">
             
             <div className="flex items-center gap-4 flex-1">
-                {/* Mobile Menu Trigger */}
                 <button 
                     onClick={() => setIsSidebarOpen(true)}
                     className="p-2 -ml-2 text-slate-600 hover:bg-slate-100 rounded-lg md:hidden"
@@ -818,16 +904,22 @@ const App: React.FC = () => {
               <button 
                 onClick={handleSaveChanges}
                 disabled={isSaving}
-                className="flex items-center gap-3 bg-indigo-600 text-white px-6 py-3 rounded-full shadow-xl hover:bg-indigo-700 transition-all hover:scale-105 disabled:bg-slate-400 disabled:scale-100"
+                className={`flex items-center gap-3 px-6 py-3 rounded-full shadow-xl transition-all hover:scale-105 disabled:bg-slate-400 disabled:scale-100 ${!isOnline ? 'bg-amber-600 hover:bg-amber-700 text-white' : 'bg-indigo-600 hover:bg-indigo-700 text-white'}`}
               >
                   {isSaving ? (
                       <Loader2 className="animate-spin" size={20} />
+                  ) : !isOnline ? (
+                      <WifiOff size={20} />
                   ) : (
                       <Save size={20} />
                   )}
                   <div className="flex flex-col items-start">
-                      <span className="font-bold text-sm">Salvar Alterações</span>
-                      <span className="text-xs text-indigo-200">{pendingChanges.length} pendentes</span>
+                      <span className="font-bold text-sm">
+                          {!isOnline ? 'Sincronizar Depois' : 'Salvar Alterações'}
+                      </span>
+                      <span className={`text-xs ${!isOnline ? 'text-amber-100' : 'text-indigo-200'}`}>
+                          {pendingChanges.length} pendentes
+                      </span>
                   </div>
               </button>
           </div>
