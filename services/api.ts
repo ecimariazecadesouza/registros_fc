@@ -1,9 +1,23 @@
-
 import { Student, ClassGroup, BimesterConfig, AttendanceStatus, ApiData, EnrollmentStatus, SystemConfig } from '../types';
+
+// ------------------------------------------------------------------
+// URL FIXA DO SCRIPT (Opcional)
+// Cole a URL do seu Web App (Google Apps Script) dentro das aspas abaixo.
+// Ela sempre começa com "https://script.google.com/macros/s/..."
+const FIXED_API_URL: string = "https://script.google.com/macros/s/AKfycbysnmPP_JufrEkntPHfWZEVxcngQAbtCmNClwVrsD64VHdRbTvC-NMUyD_XO9eZ3d-d/exec"; // <<<< COLE SUA URL DENTRO DAS ASPAS AQUI
+// ------------------------------------------------------------------
 
 const STORAGE_KEY = 'frequencia_escolar_api_url';
 
-export const getApiUrl = () => localStorage.getItem(STORAGE_KEY);
+export const getApiUrl = () => {
+    // Se houver uma URL fixa no código, usa ela.
+    if (FIXED_API_URL && FIXED_API_URL.trim() !== "") {
+        return FIXED_API_URL;
+    }
+    // Caso contrário, busca do LocalStorage
+    return localStorage.getItem(STORAGE_KEY);
+};
+
 export const setApiUrl = (url: string) => localStorage.setItem(STORAGE_KEY, url);
 
 // --- DATE HELPERS ---
@@ -127,7 +141,7 @@ export const api = {
             name: student.name,
             registration: finalClassId, 
             classId: finalClassId, 
-            situation: finalStatus,
+            situation: finalStatus, 
             status: finalStatus,
             createdAt: new Date().toISOString()
         };
