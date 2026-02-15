@@ -1,4 +1,4 @@
-import { Student, ClassGroup, BimesterConfig, AttendanceStatus, ApiData, EnrollmentStatus, SystemConfig } from '../types';
+import { Student, ClassGroup, BimesterConfig, AttendanceStatus, ApiData, EnrollmentStatus, SystemConfig, PendingChange } from '../types';
 
 // ------------------------------------------------------------------
 // URL FIXA DO SCRIPT (Opcional)
@@ -175,6 +175,19 @@ export const api = {
             notes: topic || '' 
         };
         return fetchGas('saveAttendance', { record });
+    },
+
+    async saveAttendanceBatch(changes: PendingChange[]) {
+        const records = changes.map(c => ({
+            studentId: c.studentId,
+            date: toBrDate(c.date),
+            lessonIndex: c.lessonIndex + 1, // Convert to 1-based index for spreadsheet
+            status: c.status,
+            subject: c.subject || '',
+            notes: c.topic || ''
+        }));
+        
+        return fetchGas('saveAttendanceBatch', { records });
     },
 
     async saveBimester(bimesters: BimesterConfig[]) {

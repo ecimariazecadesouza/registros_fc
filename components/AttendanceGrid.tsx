@@ -5,6 +5,7 @@ import { STATUS_COLORS, ENROLLMENT_COLORS } from '../constants';
 import { Check, X, Clock, ChevronDown, CheckCheck } from 'lucide-react';
 
 interface AttendanceGridProps {
+  classId: string;
   students: Student[];
   dates: string[];
   attendance: ClassAttendance;
@@ -22,6 +23,7 @@ interface AttendanceGridProps {
 }
 
 const AttendanceGrid: React.FC<AttendanceGridProps> = ({ 
+  classId,
   students, 
   dates, 
   attendance, 
@@ -56,10 +58,12 @@ const AttendanceGrid: React.FC<AttendanceGridProps> = ({
   // Init temp subjects/topics when opening popover
   useEffect(() => {
       if (openConfigDate) {
-          setTempSubjects(lessonSubjects[openConfigDate] || {});
-          setTempTopics(lessonTopics[openConfigDate] || {});
+          const configKey = `${classId}_${openConfigDate}`;
+          // Fallback to simple date key for legacy data
+          setTempSubjects(lessonSubjects[configKey] || lessonSubjects[openConfigDate] || {});
+          setTempTopics(lessonTopics[configKey] || lessonTopics[openConfigDate] || {});
       }
-  }, [openConfigDate, lessonSubjects, lessonTopics]);
+  }, [openConfigDate, lessonSubjects, lessonTopics, classId]);
 
   const calculateStats = (studentId: string): StudentStats => {
     const record = attendance[studentId] || {};
@@ -71,8 +75,11 @@ const AttendanceGrid: React.FC<AttendanceGridProps> = ({
     // Only calculate stats based on the currently visible month dates
     dates.forEach(date => {
         const statuses = record[date] || [];
+        
+        // Use composite key or fallback to legacy date key
+        const configKey = `${classId}_${date}`;
         // Default to [0] if no config, meaning 1st lesson
-        const activeIndices = dailyLessonConfig[date] || [0];
+        const activeIndices = dailyLessonConfig[configKey] || dailyLessonConfig[date] || [0];
         
         activeIndices.forEach(idx => {
            const status = statuses[idx];
@@ -173,8 +180,9 @@ const AttendanceGrid: React.FC<AttendanceGridProps> = ({
                 const isWeekend = weekDay === 'sáb' || weekDay === 'dom';
                 const holiday = getHoliday(date);
                 
-                // Use stored config or default to [0] (1st lesson)
-                const activeIndices = dailyLessonConfig[date] || [0];
+                // Config Key Lookup
+                const configKey = `${classId}_${date}`;
+                const activeIndices = dailyLessonConfig[configKey] || dailyLessonConfig[date] || [0];
                 const isOpen = openConfigDate === date;
 
                 const headerClass = holiday 
@@ -364,9 +372,11 @@ const AttendanceGrid: React.FC<AttendanceGridProps> = ({
                     const holiday = getHoliday(date);
                     const isLocked = student.status === EnrollmentStatus.DROPOUT || student.status === EnrollmentStatus.TRANSFERRED;
                     
-                    const activeIndices = dailyLessonConfig[date] || [0];
-                    const subjects = lessonSubjects[date] || {};
-                    const topics = lessonTopics[date] || {};
+                    // Config Lookup with Fallback
+                    const configKey = `${classId}_${date}`;
+                    const activeIndices = dailyLessonConfig[configKey] || dailyLessonConfig[date] || [0];
+                    const subjects = lessonSubjects[configKey] || lessonSubjects[date] || {};
+                    const topics = lessonTopics[configKey] || lessonTopics[date] || {};
                     
                     return (
                       <td 

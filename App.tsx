@@ -38,11 +38,11 @@ const App: React.FC = () => {
   const [attendance, setAttendance] = useState<ClassAttendance>({}); 
   const [bimesters, setBimesters] = useState<BimesterConfig[]>(BIMESTERS);
 
-  // Configuration State: Map date string -> Array of active lesson indices [0, 1, 3...]
+  // Configuration State: Map "classId_date" -> Array of active lesson indices [0, 1, 3...]
   const [dailyLessonConfig, setDailyLessonConfig] = useState<Record<string, number[]>>({});
-  // Subject State: Map date -> lessonIndex -> Subject Name
+  // Subject State: Map "classId_date" -> lessonIndex -> Subject Name
   const [lessonSubjects, setLessonSubjects] = useState<LessonSubjectMap>({});
-  // Topic State: Map date -> lessonIndex -> Lesson Content
+  // Topic State: Map "classId_date" -> lessonIndex -> Lesson Content
   const [lessonTopics, setLessonTopics] = useState<LessonTopicMap>({});
   
   // School Settings
@@ -136,12 +136,13 @@ const App: React.FC = () => {
         const rawConfig = configMap['dailyLessonCounts'] || {};
         const normalizedConfig: Record<string, number[]> = {};
         
-        Object.keys(rawConfig).forEach(date => {
-            const val = rawConfig[date];
+        // Ensure compatibility with old format (just date) and new format (classId_date)
+        Object.keys(rawConfig).forEach(key => {
+            const val = rawConfig[key];
             if (typeof val === 'number') {
-                normalizedConfig[date] = Array.from({ length: val }, (_, i) => i);
+                normalizedConfig[key] = Array.from({ length: val }, (_, i) => i);
             } else if (Array.isArray(val)) {
-                normalizedConfig[date] = val;
+                normalizedConfig[key] = val;
             }
         });
         
@@ -252,9 +253,13 @@ const App: React.FC = () => {
   // --- HANDLERS ---
 
   const handleUpdateLessonConfig = async (date: string, activeIndices: number[], subjects: Record<number, string>, topics: Record<number, string>) => {
-    const newConfig = { ...dailyLessonConfig, [date]: activeIndices };
-    const newSubjects = { ...lessonSubjects, [date]: subjects };
-    const newTopics = { ...lessonTopics, [date]: topics };
+    // Generate a unique key for this class and date
+    // Format: "classId_YYYY-MM-DD"
+    const key = `${selectedClassId}_${date}`;
+
+    const newConfig = { ...dailyLessonConfig, [key]: activeIndices };
+    const newSubjects = { ...lessonSubjects, [key]: subjects };
+    const newTopics = { ...lessonTopics, [key]: topics };
 
     setDailyLessonConfig(newConfig);
     setLessonSubjects(newSubjects);
@@ -267,8 +272,6 @@ const App: React.FC = () => {
              await api.saveConfig('lessonSubjects', newSubjects);
              await api.saveConfig('lessonTopics', newTopics);
         } else {
-            // For config, we don't have a complex queue yet, just a warning for now
-            // Ideally config should also be queued, but for simplicity we rely on local state until next sync
              console.warn("Offline: Config saved locally but not synced.");
         }
     } catch (e) {
@@ -288,7 +291,9 @@ const App: React.FC = () => {
 
   const handleToggleStatus = (studentId: string, date: string, lessonIndex: number, forcedStatus?: AttendanceStatus) => {
     // 1. Determine new status
-    const activeLessons = dailyLessonConfig[date] || [0];
+    // Use composite key first, fallback to simple date (legacy data)
+    const configKey = `${selectedClassId}_${date}`;
+    const activeLessons = dailyLessonConfig[configKey] || dailyLessonConfig[date] || [0];
     const maxIndex = Math.max(...activeLessons, lessonIndex);
 
     const studentRecord = attendance[studentId] || {};
@@ -328,9 +333,12 @@ const App: React.FC = () => {
         }
     }));
 
-    // Get subject and topic
-    const subject = lessonSubjects[date]?.[lessonIndex] || '';
-    const topic = lessonTopics[date]?.[lessonIndex] || '';
+    // Get subject and topic using composite key or fallback
+    const subjectsMap = lessonSubjects[configKey] || lessonSubjects[date] || {};
+    const topicsMap = lessonTopics[configKey] || lessonTopics[date] || {};
+
+    const subject = subjectsMap[lessonIndex] || '';
+    const topic = topicsMap[lessonIndex] || '';
 
     // 3. Queue Change
     setPendingChanges(prev => {
@@ -364,33 +372,19 @@ const App: React.FC = () => {
       }
 
       setIsSaving(true);
-      const changesToSync = [...pendingChanges];
-      const failedChanges: PendingChange[] = [];
-
-      // Process strictly one by one to ensure consistency
-      for (const change of changesToSync) {
-          try {
-              await api.saveAttendance(
-                  change.studentId, 
-                  change.date, 
-                  change.lessonIndex, 
-                  change.status,
-                  change.subject,
-                  change.topic 
-              );
-          } catch (error) {
-              console.error("Sync error", error);
-              failedChanges.push(change);
-          }
-      }
       
-      setPendingChanges(failedChanges);
-      setIsSaving(false);
-
-      if (failedChanges.length === 0) {
-          // Success
-      } else {
-          alert(`Houve erro ao sincronizar ${failedChanges.length} registros. Eles permanecerão na fila.`);
+      try {
+          // Send all changes in a single batch request
+          await api.saveAttendanceBatch(pendingChanges);
+          
+          // Clear queue only on success
+          setPendingChanges([]);
+      } catch (error) {
+          console.error("Sync error", error);
+          alert("Erro ao sincronizar dados. Tente novamente.");
+          // Queue remains populated so user can try again
+      } finally {
+          setIsSaving(false);
       }
   };
 
@@ -855,6 +849,7 @@ const App: React.FC = () => {
                 </div>
 
                 <AttendanceGrid 
+                    classId={selectedClassId}
                     students={classStudents}
                     dates={dateList}
                     attendance={attendance}
