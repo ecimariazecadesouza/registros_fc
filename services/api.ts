@@ -4,7 +4,7 @@ import { Student, ClassGroup, BimesterConfig, AttendanceStatus, ApiData, Enrollm
 // URL FIXA DO SCRIPT (Opcional)
 // Cole a URL do seu Web App (Google Apps Script) dentro das aspas abaixo.
 // Ela sempre começa com "https://script.google.com/macros/s/..."
-const FIXED_API_URL: string = "https://script.google.com/macros/s/AKfycbysnmPP_JufrEkntPHfWZEVxcngQAbtCmNClwVrsD64VHdRbTvC-NMUyD_XO9eZ3d-d/exec"; // <<<< COLE SUA URL DENTRO DAS ASPAS AQUI
+const FIXED_API_URL: string = "https://script.google.com/macros/s/AKfycby2n8IEWMdV-Dywqky019S_1QcXwd1EEEidOgJCYiTYAryozSYgkt7eVhxEg7Fu6s0Ksw/exec"; // <<<< COLE SUA URL DENTRO DAS ASPAS AQUI
 // ------------------------------------------------------------------
 
 const STORAGE_KEY = 'frequencia_escolar_api_url';
@@ -26,7 +26,7 @@ export const setApiUrl = (url: string) => localStorage.setItem(STORAGE_KEY, url)
 const toBrDate = (isoDate: string): string => {
     if (!isoDate) return '';
     const parts = isoDate.split('-'); // Assume YYYY-MM-DD
-    if (parts.length !== 3) return isoDate; 
+    if (parts.length !== 3) return isoDate;
     return `${parts[2]}-${parts[1]}-${parts[0]}`;
 };
 
@@ -34,7 +34,7 @@ const toBrDate = (isoDate: string): string => {
 const toIsoDate = (dateStr: string): string => {
     if (!dateStr) return '';
     const cleanStr = dateStr.trim().substring(0, 10);
-    
+
     // Se já estiver em ISO YYYY-MM-DD, retorna
     if (cleanStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
         return cleanStr;
@@ -59,7 +59,7 @@ const fetchGas = async (action: string, payload: any = {}) => {
     const response = await fetch(url, {
         method: 'POST',
         headers: {
-            'Content-Type': 'text/plain;charset=utf-8', 
+            'Content-Type': 'text/plain;charset=utf-8',
         },
         body: JSON.stringify(fullPayload)
     });
@@ -75,7 +75,7 @@ const fetchGas = async (action: string, payload: any = {}) => {
 
 const normalizeStatus = (raw: any): EnrollmentStatus => {
     const str = String(raw || '').trim();
-    if (!str) return EnrollmentStatus.ACTIVE; 
+    if (!str) return EnrollmentStatus.ACTIVE;
 
     const validValues = Object.values(EnrollmentStatus);
     if (validValues.includes(str as EnrollmentStatus)) {
@@ -88,7 +88,7 @@ const normalizeStatus = (raw: any): EnrollmentStatus => {
 export const api = {
     async getData(): Promise<ApiData> {
         const data = await fetchGas('getData');
-        
+
         // Data sanitization & Auto-Healing
         if (data.students) {
             data.students = data.students.map((s: any) => {
@@ -97,18 +97,18 @@ export const api = {
 
                 // HEALING LOGIC: Detect if columns are shifted in the spreadsheet
                 const registrationVal = s.registration ? String(s.registration).trim() : '';
-                
+
                 if (registrationVal.startsWith('c-')) {
                     safeClassId = registrationVal;
                 }
-                
+
                 if (Object.values(EnrollmentStatus).includes(safeClassId as any)) {
-                     safeStatus = safeClassId as EnrollmentStatus;
-                     if (registrationVal.startsWith('c-')) {
-                         safeClassId = registrationVal;
-                     } else {
-                         safeClassId = ''; 
-                     }
+                    safeStatus = safeClassId as EnrollmentStatus;
+                    if (registrationVal.startsWith('c-')) {
+                        safeClassId = registrationVal;
+                    } else {
+                        safeClassId = '';
+                    }
                 }
 
                 return {
@@ -124,24 +124,24 @@ export const api = {
         if (data.classes) {
             data.classes = data.classes.map((c: any) => ({
                 ...c,
-                id: String(c.id), 
+                id: String(c.id),
                 name: String(c.name).trim()
             }));
         }
-        
+
         return data;
     },
 
     async saveStudent(student: Student) {
         const finalStatus = student.status || EnrollmentStatus.ACTIVE;
         const finalClassId = student.classId || '';
-        
+
         const safeStudent = {
             id: student.id,
             name: student.name,
-            registration: finalClassId, 
-            classId: finalClassId, 
-            situation: finalStatus, 
+            registration: finalClassId,
+            classId: finalClassId,
+            situation: finalStatus,
             status: finalStatus,
             createdAt: new Date().toISOString()
         };
@@ -162,17 +162,17 @@ export const api = {
 
     async saveAttendance(studentId: string, date: string, lessonIndex: number, status: AttendanceStatus, subject?: string, topic?: string) {
         const spreadsheetIndex = lessonIndex + 1;
-        
+
         // CONVERT DATE TO BR FORMAT (DD-MM-YYYY) BEFORE SENDING
         const dateBR = toBrDate(date);
 
         const record = {
             studentId,
-            date: dateBR, 
-            lessonIndex: spreadsheetIndex, 
+            date: dateBR,
+            lessonIndex: spreadsheetIndex,
             status,
             subject: subject || '',
-            notes: topic || '' 
+            notes: topic || ''
         };
         return fetchGas('saveAttendance', { record });
     },
@@ -186,7 +186,7 @@ export const api = {
             subject: c.subject || '',
             notes: c.topic || ''
         }));
-        
+
         return fetchGas('saveAttendanceBatch', { records });
     },
 
@@ -195,28 +195,28 @@ export const api = {
     },
 
     async saveConfig(key: string, value: any) {
-         return fetchGas('saveConfig', { key, value: JSON.stringify(value) });
+        return fetchGas('saveConfig', { key, value: JSON.stringify(value) });
     },
 
     async syncAll(data: { students: Student[], classes: ClassGroup[], bimesters: BimesterConfig[] }) {
         const safeStudents = data.students.map(s => {
             const finalStatus = s.status || EnrollmentStatus.ACTIVE;
             const finalClassId = s.classId || '';
-            
+
             return {
                 id: s.id,
                 name: s.name,
-                registration: finalClassId, 
-                classId: finalClassId,      
-                situation: finalStatus,     
-                status: finalStatus,        
+                registration: finalClassId,
+                classId: finalClassId,
+                situation: finalStatus,
+                status: finalStatus,
                 createdAt: new Date().toISOString()
             };
         });
-        
-        return fetchGas('saveAll', { 
-            ...data, 
-            students: safeStudents 
+
+        return fetchGas('saveAll', {
+            ...data,
+            students: safeStudents
         });
     }
 };
@@ -226,11 +226,11 @@ export const transformAttendanceFromApi = (rawRecords: any[]): Record<string, Re
 
     rawRecords.forEach(rec => {
         const { studentId, date, lessonIndex, status } = rec;
-        
+
         // NORMALIZE DATE FROM API (BR or ISO) TO APP ISO (YYYY-MM-DD)
         const dateStrRaw = typeof date === 'string' ? date : '';
         const dateStr = toIsoDate(dateStrRaw);
-        
+
         if (!dateStr) return; // Skip invalid dates
 
         if (!attendance[studentId]) attendance[studentId] = {};
@@ -238,7 +238,7 @@ export const transformAttendanceFromApi = (rawRecords: any[]): Record<string, Re
 
         let rawIdx = parseInt(lessonIndex as string, 10) || 1;
         if (rawIdx > 20 || rawIdx < 1) {
-            rawIdx = 1; 
+            rawIdx = 1;
         }
 
         const idx = Math.max(0, rawIdx - 1);
