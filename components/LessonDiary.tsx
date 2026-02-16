@@ -176,7 +176,7 @@ const LessonDiary: React.FC<Props> = () => {
                                             const isEditing = editingLesson?.date === dayRecord.date && editingLesson?.index === lesson.index;
 
                                             return (
-                                                <div key={idx} className={`p-4 transition-colors flex gap-4 ${isEditing ? 'bg-indigo-50' : 'hover:bg-indigo-50/30'}`}>
+                                                <div key={idx} className={`p-4 transition-colors flex gap-4 group ${isEditing ? 'bg-indigo-50' : 'hover:bg-indigo-50/30'}`}>
                                                     <div className="flex flex-col items-center justify-center w-12 h-12 rounded-lg bg-slate-100 text-slate-500 shrink-0">
                                                         <span className="text-xs font-bold uppercase">Aula</span>
                                                         <span className="text-lg font-bold leading-none">{lesson.index + 1}ª</span>
