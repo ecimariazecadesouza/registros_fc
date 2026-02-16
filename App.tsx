@@ -10,13 +10,14 @@ import AttendanceGrid from './components/AttendanceGrid';
 import StudentDetailModal from './components/StudentDetailModal';
 import GlobalDashboard from './components/GlobalDashboard';
 import ReportsDashboard from './components/ReportsDashboard';
+import LessonDiary from './components/LessonDiary';
 import StudentManager from './components/StudentManager';
 import SettingsModal from './components/SettingsModal';
 import SchoolConfigModal from './components/SchoolConfigModal';
 import { api, getApiUrl, transformAttendanceFromApi, transformConfigFromApi } from './services/api';
-import { ChevronLeft, ChevronRight, Plus, GraduationCap, School, X, Settings, Filter, CalendarRange, LayoutDashboard, Users, Pencil, Trash2, Check, Loader2, Database, Save, AlertCircle, BookOpen, FileBarChart, Menu, Wifi, WifiOff, RefreshCw } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, GraduationCap, School, X, Settings, Filter, CalendarRange, LayoutDashboard, Users, Pencil, Trash2, Check, Loader2, Database, Save, AlertCircle, BookOpen, FileBarChart, Menu, Wifi, WifiOff, RefreshCw, BookMarked } from 'lucide-react';
 
-type ViewMode = 'CLASS' | 'DASHBOARD' | 'STUDENTS' | 'REPORTS';
+type ViewMode = 'CLASS' | 'DASHBOARD' | 'STUDENTS' | 'REPORTS' | 'DIARY';
 
 const DATA_CACHE_KEY = 'frequencia_escolar_data_cache';
 const QUEUE_CACHE_KEY = 'frequencia_escolar_offline_queue';
@@ -631,6 +632,18 @@ const App: React.FC = () => {
                 <FileBarChart size={18} />
                 <span className="text-sm font-medium">Relatórios</span>
             </button>
+            
+            <button
+                onClick={() => setViewMode('DIARY')}
+                className={`w-full text-left px-3 py-2 rounded-md transition-colors flex items-center gap-2 ${
+                    viewMode === 'DIARY'
+                    ? 'bg-indigo-600 text-white shadow-md' 
+                    : 'hover:bg-slate-800 text-slate-300'
+                }`}
+            >
+                <BookMarked size={18} />
+                <span className="text-sm font-medium">Diário de Conteúdos</span>
+            </button>
 
              <button
                 onClick={() => setViewMode('STUDENTS')}
@@ -763,7 +776,7 @@ const App: React.FC = () => {
                     <Menu size={24} />
                 </button>
 
-                {viewMode === 'CLASS' ? (
+                {viewMode === 'CLASS' || viewMode === 'DIARY' ? (
                   <div className="flex items-center gap-3 overflow-x-auto no-scrollbar">
                     <div className="flex items-center bg-gray-100 rounded-lg p-1 border border-gray-200 shrink-0">
                         <button 
@@ -881,6 +894,18 @@ const App: React.FC = () => {
                 classes={classes}
                 attendance={attendance}
                 bimesters={bimesters}
+                dailyLessonConfig={dailyLessonConfig}
+                lessonSubjects={lessonSubjects}
+            />
+        ) : viewMode === 'DIARY' ? (
+            <LessonDiary 
+                classes={classes}
+                dailyLessonConfig={dailyLessonConfig}
+                lessonSubjects={lessonSubjects}
+                lessonTopics={lessonTopics}
+                registeredSubjects={registeredSubjects}
+                year={year}
+                month={month}
             />
         ) : (
             <GlobalDashboard 
@@ -1010,6 +1035,8 @@ const App: React.FC = () => {
             year={year}
             bimesters={bimesters}
             onClose={() => setSelectedStudent(null)}
+            dailyLessonConfig={dailyLessonConfig}
+            lessonSubjects={lessonSubjects}
           />
       )}
     </div>

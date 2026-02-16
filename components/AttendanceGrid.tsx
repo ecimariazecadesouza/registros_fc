@@ -131,7 +131,7 @@ const AttendanceGrid: React.FC<AttendanceGridProps> = ({
 
   // Dimensions for sticky columns
   const IDX_WIDTH = 50;
-  const NAME_WIDTH = 250;
+  const NAME_WIDTH = 350; // Aumentado de 250 para 350
   const STATUS_WIDTH = 120;
   const NAME_LEFT = IDX_WIDTH;
   const STATUS_LEFT = IDX_WIDTH + NAME_WIDTH;
@@ -151,9 +151,9 @@ const AttendanceGrid: React.FC<AttendanceGridProps> = ({
         <table className="min-w-max border-collapse text-sm text-left">
           <thead className="bg-slate-800 text-white md:sticky top-0 z-20">
             <tr>
-              {/* INDEX COLUMN - Sticky only on MD+ */}
+              {/* INDEX COLUMN - Sticky on Mobile and Desktop */}
               <th 
-                className="md:sticky bg-slate-800 p-3 border-b border-slate-700 text-center font-medium z-30"
+                className="sticky bg-slate-800 p-3 border-b border-slate-700 text-center font-medium z-30"
                 style={{ left: 0, minWidth: IDX_WIDTH }}
               >
                 #
@@ -161,7 +161,7 @@ const AttendanceGrid: React.FC<AttendanceGridProps> = ({
 
               {/* NAME COLUMN - Sticky only on MD+ */}
               <th 
-                className="md:sticky bg-slate-800 p-3 border-b border-slate-700 font-medium z-30 min-w-[200px] md:min-w-[250px]"
+                className="md:sticky bg-slate-800 p-3 border-b border-slate-700 font-medium z-30 min-w-[200px] md:min-w-[350px]"
                 style={{ left: NAME_LEFT }}
               >
                 Nome do Protagonista
@@ -276,7 +276,7 @@ const AttendanceGrid: React.FC<AttendanceGridProps> = ({
                                                                 onBlur={() => handleConfigSave(date, activeIndices)}
                                                             />
                                                             <input 
-                                                                type="text"
+                                                                type="text" 
                                                                 className="w-full bg-white border border-indigo-200 rounded px-2 py-1 text-xs text-slate-700 focus:outline-none focus:border-indigo-500"
                                                                 placeholder="Conteúdo (ex: Equações)"
                                                                 value={tempTopics[idx] || ''}
@@ -316,9 +316,9 @@ const AttendanceGrid: React.FC<AttendanceGridProps> = ({
 
               return (
                 <tr key={student.id} className="hover:bg-blue-50 transition-colors group">
-                  {/* INDEX CELL */}
+                  {/* INDEX CELL - Sticky on Mobile and Desktop */}
                   <td 
-                    className="md:sticky bg-white group-hover:bg-blue-50 p-2 text-center text-gray-500 border-r border-gray-100 font-mono text-xs z-10"
+                    className="sticky bg-white group-hover:bg-blue-50 p-2 text-center text-gray-500 border-r border-gray-100 font-mono text-xs z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]"
                     style={{ left: 0 }}
                   >
                     {(index + 1).toString().padStart(2, '0')}
@@ -332,9 +332,9 @@ const AttendanceGrid: React.FC<AttendanceGridProps> = ({
                     <div className="flex items-center gap-2">
                         <button 
                             onClick={() => onSelectStudent(student)}
-                            className="flex-1 text-left focus:outline-none truncate max-w-[200px]"
+                            className="flex-1 text-left focus:outline-none"
                         >
-                          <span className="font-medium text-slate-700 block truncate" title={student.name}>{student.name}</span>
+                          <span className="font-medium text-slate-700 block leading-tight" title={student.name}>{student.name}</span>
                         </button>
                         
                         {isLowAttendance && (
