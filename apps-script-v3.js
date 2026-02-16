@@ -192,57 +192,90 @@ function saveAttendanceBatch(records) {
     const sheet = db.attendance;
     const dataRange = sheet.getDataRange();
     const data = dataRange.getValues();
-    const idMap = new Map();
-    for (let i = 0; i < data.length; i++) idMap.set(String(data[i][0]), i);
 
-    const idsToDelete = new Set();
+    // MAPA ROBUSTO: CHAVE CÁLCULADA -> ÍNDICE DA LINHA
+    // Normaliza a data da linha para ISO para garantir match independente do formato salvo
+    const contentMap = new Map();
+
+    // Helper para normalizar datas de qualquer formato (Date object, BR string, ISO string)
+    const normalizeDate = (d) => {
+        if (!d) return "";
+        if (d instanceof Date) return d.toISOString().split('T')[0];
+        let s = String(d).trim();
+        if (s.indexOf('/') !== -1) {
+            let p = s.split('/'); // DD/MM/YYYY
+            return p[2] + '-' + p[1].padStart(2, '0') + '-' + p[0].padStart(2, '0'); // YYYY-MM-DD
+        }
+        return s.substring(0, 10); // Assume ISO start
+    };
+
+    // Pular cabeçalho (i=1)
+    for (let i = 1; i < data.length; i++) {
+        const rowStudentId = String(data[i][1]);
+        const rowDate = normalizeDate(data[i][2]);
+        const rowLessonIdx = String(data[i][3]);
+
+        // Chave única baseada no CONTEÚDO real (não na coluna ID que pode estar desatualizada)
+        const uniqueKey = rowStudentId + "_" + rowDate + "_" + rowLessonIdx;
+        contentMap.set(uniqueKey, i);
+    }
+
+    const rowsToDelete = new Set(); // Índices das linhas para deletar
     const newRows = [];
     let hasUpdates = false;
 
     records.forEach(rec => {
-        // NORMALIZAÇÃO DE DATA (BR PARA ISO) PARA GARANTIR CONSISTÊNCIA DO ID
-        let normDate = String(rec.date);
-        if (normDate.indexOf('/') !== -1) {
-            let pts = normDate.split('/');
-            normDate = pts[2] + '-' + pts[1].padStart(2, '0') + '-' + pts[0].padStart(2, '0');
-        } else if (normDate.length > 10) {
-            normDate = normDate.substring(0, 10);
-        }
+        // Normaliza a data do registro que chegou
+        let recDate = normalizeDate(rec.date);
 
-        const uniqueId = rec.studentId + "_" + normDate + "_" + rec.lessonIndex;
+        const targetKey = rec.studentId + "_" + recDate + "_" + rec.lessonIndex;
+        const newUniqueId = targetKey; // O novo ID padrão será ISO
 
+        // LÓGICA DE EXCLUSÃO
         if (rec.status === '-' || rec.status === 'UNDEFINED') {
-            if (idMap.has(uniqueId)) idsToDelete.add(uniqueId);
+            if (contentMap.has(targetKey)) {
+                rowsToDelete.add(contentMap.get(targetKey));
+            }
             return;
         }
 
-        const rowData = [uniqueId, rec.studentId, normDate, rec.lessonIndex, rec.status, rec.subject || '', rec.notes || ''];
-        if (idMap.has(uniqueId)) {
-            data[idMap.get(uniqueId)] = rowData;
-            hasUpdates = true;
+        // LÓGICA DE ATUALIZAÇÃO / INSERÇÃO
+        const rowData = [newUniqueId, rec.studentId, recDate, rec.lessonIndex, rec.status, rec.subject || '', rec.notes || ''];
+
+        if (contentMap.has(targetKey)) {
+            // Atualiza linha existente (mesmo se o ID antigo era diferente, agora padroniza)
+            const rowIndex = contentMap.get(targetKey);
+            // Só atualiza se não estiver marcado para deletar (segurança)
+            if (!rowsToDelete.has(rowIndex)) {
+                data[rowIndex] = rowData;
+                hasUpdates = true;
+            }
         } else {
+            // Insere nova
             newRows.push(rowData);
         }
     });
 
+    // 1. APLICAR ATUALIZAÇÕES EM LOTE
     if (hasUpdates) {
         sheet.getRange(1, 1, data.length, data[0].length).setValues(data);
     }
 
-    if (idsToDelete.size > 0) {
-        const freshData = sheet.getDataRange().getValues();
-        for (let i = freshData.length - 1; i >= 1; i--) {
-            if (idsToDelete.has(String(freshData[i][0]))) {
-                sheet.deleteRow(i + 1);
-            }
-        }
+    // 2. APLICAR DELEÇÕES (DE TRÁS PARA FRENTE PARA NÃO QUEBRAR ÍNDICES)
+    if (rowsToDelete.size > 0) {
+        // Ordena índices decrescente
+        const sortedIndices = Array.from(rowsToDelete).sort((a, b) => b - a);
+        sortedIndices.forEach(idx => {
+            sheet.deleteRow(idx + 1); // +1 porque sheet é 1-based e array é 0-based
+        });
     }
 
+    // 3. APLICAR NOVAS INSERÇÕES
     if (newRows.length > 0) {
         sheet.getRange(sheet.getLastRow() + 1, 1, newRows.length, newRows[0].length).setValues(newRows);
     }
 
-    return { status: "success", processed: records.length, deleted: idsToDelete.size };
+    return { status: "success", processed: records.length, deleted: rowsToDelete.size, updated: hasUpdates };
 }
 
 function saveStudent(s) {
