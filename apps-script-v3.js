@@ -178,10 +178,19 @@ function saveAttendanceBatch(records) {
     const data = dataRange.getValues();
     const idMap = new Map();
     for (let i = 0; i < data.length; i++) idMap.set(String(data[i][0]), i);
+
+    const idsToDelete = new Set();
     const newRows = [];
     let hasUpdates = false;
+
     records.forEach(rec => {
         const uniqueId = rec.studentId + "_" + rec.date + "_" + rec.lessonIndex;
+
+        if (rec.status === 'UNDEFINED') {
+            if (idMap.has(uniqueId)) idsToDelete.add(uniqueId);
+            return;
+        }
+
         const rowData = [uniqueId, rec.studentId, rec.date, rec.lessonIndex, rec.status, rec.subject || '', rec.notes || ''];
         if (idMap.has(uniqueId)) {
             data[idMap.get(uniqueId)] = rowData;
@@ -190,9 +199,25 @@ function saveAttendanceBatch(records) {
             newRows.push(rowData);
         }
     });
-    if (hasUpdates) sheet.getRange(1, 1, data.length, data[0].length).setValues(data);
-    if (newRows.length > 0) sheet.getRange(data.length + 1, 1, newRows.length, newRows[0].length).setValues(newRows);
-    return { status: "success", processed: records.length };
+
+    if (hasUpdates) {
+        sheet.getRange(1, 1, data.length, data[0].length).setValues(data);
+    }
+
+    if (idsToDelete.size > 0) {
+        const freshData = sheet.getDataRange().getValues();
+        for (let i = freshData.length - 1; i >= 1; i--) {
+            if (idsToDelete.has(String(freshData[i][0]))) {
+                sheet.deleteRow(i + 1);
+            }
+        }
+    }
+
+    if (newRows.length > 0) {
+        sheet.getRange(sheet.getLastRow() + 1, 1, newRows.length, newRows[0].length).setValues(newRows);
+    }
+
+    return { status: "success", processed: records.length, deleted: idsToDelete.size };
 }
 
 function saveStudent(s) {

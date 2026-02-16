@@ -235,6 +235,9 @@ export const transformAttendanceFromApi = (rawRecords: any[]): Record<string, Re
     rawRecords.forEach(rec => {
         const { studentId, date, lessonIndex, status } = rec;
 
+        // Safety: Filter out UNDEFINED entries from API
+        if (status === 'UNDEFINED' || status === AttendanceStatus.UNDEFINED) return;
+
         // NORMALIZE DATE FROM API (BR or ISO) TO APP ISO (YYYY-MM-DD)
         const dateStrRaw = typeof date === 'string' ? date : '';
         const dateStr = toIsoDate(dateStrRaw);
