@@ -171,6 +171,10 @@ function updateNestedConfig(mainKey, classId, date, newData) {
     return { status: "success", key: mainKey };
 }
 
+function saveAttendance(record) {
+    return saveAttendanceBatch([record]);
+}
+
 function saveAttendanceBatch(records) {
     const db = getDb();
     const sheet = db.attendance;
@@ -186,7 +190,7 @@ function saveAttendanceBatch(records) {
     records.forEach(rec => {
         const uniqueId = rec.studentId + "_" + rec.date + "_" + rec.lessonIndex;
 
-        if (rec.status === 'UNDEFINED') {
+        if (rec.status === '-' || rec.status === 'UNDEFINED') {
             if (idMap.has(uniqueId)) idsToDelete.add(uniqueId);
             return;
         }
