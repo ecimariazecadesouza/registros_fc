@@ -121,7 +121,19 @@ function getAllData() {
             const studentId = String(rawAttendance[i][1]).trim();
             if (!studentId) continue;
             let d = rawAttendance[i][2];
-            let dateISO = (d instanceof Date) ? d.toISOString().split('T')[0] : String(d).substring(0, 10);
+            let dateISO = "";
+            if (d instanceof Date) {
+                dateISO = d.toISOString().split('T')[0];
+            } else {
+                let s = String(d).trim();
+                if (s.indexOf('/') !== -1) {
+                    let p = s.split('/');
+                    dateISO = p[2] + '-' + p[1].padStart(2, '0') + '-' + p[0].padStart(2, '0');
+                } else {
+                    dateISO = s.substring(0, 10);
+                }
+            }
+
             attendance.push({
                 studentId: studentId,
                 date: dateISO,
@@ -188,14 +200,23 @@ function saveAttendanceBatch(records) {
     let hasUpdates = false;
 
     records.forEach(rec => {
-        const uniqueId = rec.studentId + "_" + rec.date + "_" + rec.lessonIndex;
+        // NORMALIZAÇÃO DE DATA (BR PARA ISO) PARA GARANTIR CONSISTÊNCIA DO ID
+        let normDate = String(rec.date);
+        if (normDate.indexOf('/') !== -1) {
+            let pts = normDate.split('/');
+            normDate = pts[2] + '-' + pts[1].padStart(2, '0') + '-' + pts[0].padStart(2, '0');
+        } else if (normDate.length > 10) {
+            normDate = normDate.substring(0, 10);
+        }
+
+        const uniqueId = rec.studentId + "_" + normDate + "_" + rec.lessonIndex;
 
         if (rec.status === '-' || rec.status === 'UNDEFINED') {
             if (idMap.has(uniqueId)) idsToDelete.add(uniqueId);
             return;
         }
 
-        const rowData = [uniqueId, rec.studentId, rec.date, rec.lessonIndex, rec.status, rec.subject || '', rec.notes || ''];
+        const rowData = [uniqueId, rec.studentId, normDate, rec.lessonIndex, rec.status, rec.subject || '', rec.notes || ''];
         if (idMap.has(uniqueId)) {
             data[idMap.get(uniqueId)] = rowData;
             hasUpdates = true;

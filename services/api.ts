@@ -163,12 +163,9 @@ export const api = {
     async saveAttendance(studentId: string, date: string, lessonIndex: number, status: AttendanceStatus, subject?: string, topic?: string) {
         const spreadsheetIndex = lessonIndex + 1;
 
-        // CONVERT DATE TO BR FORMAT (DD-MM-YYYY) BEFORE SENDING
-        const dateBR = toBrDate(date);
-
         const record = {
             studentId,
-            date: dateBR,
+            date, // Mantém ISO (YYYY-MM-DD)
             lessonIndex: spreadsheetIndex,
             status,
             subject: subject || '',
@@ -180,8 +177,8 @@ export const api = {
     async saveAttendanceBatch(changes: PendingChange[]) {
         const records = changes.map(c => ({
             studentId: c.studentId,
-            date: toBrDate(c.date),
-            lessonIndex: c.lessonIndex + 1, // Convert to 1-based index for spreadsheet
+            date: c.date, // Mantém ISO (YYYY-MM-DD)
+            lessonIndex: c.lessonIndex + 1,
             status: c.status,
             subject: c.subject || '',
             notes: c.topic || ''
