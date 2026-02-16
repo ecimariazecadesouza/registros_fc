@@ -1,14 +1,24 @@
 import React, { useState, useMemo } from 'react';
-import { BookOpen, Calendar, FileText, Search, GraduationCap, ChevronDown, Filter } from 'lucide-react';
+import { BookOpen, Calendar, FileText, Search, GraduationCap, ChevronDown, Filter, Edit2, Trash2, Check, X } from 'lucide-react';
 import { useSchool } from '../context/SchoolContext';
+import { AttendanceStatus } from '../types';
 
 interface Props { }
 
 const LessonDiary: React.FC<Props> = () => {
-    const { classes, dailyLessonConfig, lessonSubjects, lessonTopics, registeredSubjects, year, month } = useSchool();
+    const {
+        classes, dailyLessonConfig, lessonSubjects, lessonTopics, registeredSubjects,
+        year, month, updateLessonConfig, attendance, classStudents
+    } = useSchool();
+
     const [selectedClassId, setSelectedClassId] = useState<string>(classes[0]?.id || '');
     const [selectedSubject, setSelectedSubject] = useState<string>('ALL');
     const [searchTerm, setSearchTerm] = useState('');
+
+    // State for editing
+    const [editingLesson, setEditingLesson] = useState<{ date: string, index: number } | null>(null);
+    const [editSubject, setEditSubject] = useState('');
+    const [editTopic, setEditTopic] = useState('');
 
     const rawMonthData = useMemo(() => {
         if (!selectedClassId) return [];
@@ -22,8 +32,8 @@ const LessonDiary: React.FC<Props> = () => {
 
             if (!activeIndices || activeIndices.length === 0) continue;
 
-            const daySubjects = lessonSubjects[configKey] || lessonSubjects[dateStr] || {};
-            const dayTopics = lessonTopics[configKey] || lessonTopics[dateStr] || {};
+            const daySubjects = lessonSubjects[configKey] || {};
+            const dayTopics = lessonTopics[configKey] || {};
 
             const lessons = activeIndices.map(idx => ({
                 index: idx,
@@ -59,6 +69,55 @@ const LessonDiary: React.FC<Props> = () => {
             return { ...dayRecord, lessons: filteredLessons };
         }).filter(dayRecord => dayRecord.lessons.length > 0);
     }, [rawMonthData, selectedSubject, searchTerm]);
+
+    const handleStartEdit = (date: string, lesson: { index: number, subject: string, topic: string }) => {
+        setEditingLesson({ date, index: lesson.index });
+        setEditSubject(lesson.subject === 'Não informada' ? '' : lesson.subject);
+        setEditTopic(lesson.topic);
+    };
+
+    const handleSaveEdit = async () => {
+        if (!editingLesson) return;
+        const { date, index } = editingLesson;
+        const configKey = `${selectedClassId}_${date}`;
+
+        const currentIndices = dailyLessonConfig[configKey] || [];
+        const currentSubjects = { ...(lessonSubjects[configKey] || {}) };
+        const currentTopics = { ...(lessonTopics[configKey] || {}) };
+
+        currentSubjects[index] = editSubject;
+        currentTopics[index] = editTopic;
+
+        await updateLessonConfig(date, currentIndices, currentSubjects, currentTopics, selectedClassId);
+        setEditingLesson(null);
+    };
+
+    const handleDeleteLesson = async (date: string, lessonIndex: number) => {
+        const configKey = `${selectedClassId}_${date}`;
+
+        // Check for existing attendance
+        const hasAttendance = classStudents.some(s => {
+            const record = attendance[s.id]?.[date];
+            return record && record[lessonIndex] && record[lessonIndex] !== AttendanceStatus.UNDEFINED;
+        });
+
+        const msg = hasAttendance
+            ? `ATENÇÃO: Existem registros de frequência para esta aula. \n\nAo excluir, TODA a frequência desta aula no dia ${date} será APAGADA permanentemente.\n\nDeseja continuar?`
+            : `Deseja realmente excluir o conteúdo da ${lessonIndex + 1}ª aula do dia ${date}?`;
+
+        if (!window.confirm(msg)) return;
+
+        const currentIndices = dailyLessonConfig[configKey] || [];
+        const newIndices = currentIndices.filter(idx => idx !== lessonIndex);
+
+        const currentSubjects = { ...(lessonSubjects[configKey] || {}) };
+        const currentTopics = { ...(lessonTopics[configKey] || {}) };
+
+        delete currentSubjects[lessonIndex];
+        delete currentTopics[lessonIndex];
+
+        await updateLessonConfig(date, newIndices, currentSubjects, currentTopics, selectedClassId);
+    };
 
     if (classes.length === 0) return <div className="p-8 text-center text-slate-500">Nenhuma turma cadastrada.</div>;
 
@@ -113,18 +172,77 @@ const LessonDiary: React.FC<Props> = () => {
                                         <span className="ml-auto text-xs font-mono text-slate-400 bg-white px-2 py-0.5 rounded border border-slate-200">{dayRecord.date}</span>
                                     </div>
                                     <div className="divide-y divide-slate-100">
-                                        {dayRecord.lessons.map((lesson, idx) => (
-                                            <div key={idx} className="p-4 hover:bg-indigo-50/30 transition-colors flex gap-4">
-                                                <div className="flex flex-col items-center justify-center w-12 h-12 rounded-lg bg-slate-100 text-slate-500 shrink-0">
-                                                    <span className="text-xs font-bold uppercase">Aula</span>
-                                                    <span className="text-lg font-bold leading-none">{lesson.index + 1}ª</span>
+                                        {dayRecord.lessons.map((lesson, idx) => {
+                                            const isEditing = editingLesson?.date === dayRecord.date && editingLesson?.index === lesson.index;
+
+                                            return (
+                                                <div key={idx} className={`p-4 transition-colors flex gap-4 ${isEditing ? 'bg-indigo-50' : 'hover:bg-indigo-50/30'}`}>
+                                                    <div className="flex flex-col items-center justify-center w-12 h-12 rounded-lg bg-slate-100 text-slate-500 shrink-0">
+                                                        <span className="text-xs font-bold uppercase">Aula</span>
+                                                        <span className="text-lg font-bold leading-none">{lesson.index + 1}ª</span>
+                                                    </div>
+
+                                                    <div className="flex-1 min-w-0">
+                                                        {isEditing ? (
+                                                            <div className="space-y-2">
+                                                                <input
+                                                                    list="registered-subjects"
+                                                                    type="text"
+                                                                    className="w-full bg-white border border-indigo-200 rounded px-2 py-1.5 text-xs font-bold outline-none focus:border-indigo-500"
+                                                                    placeholder="Disciplina"
+                                                                    value={editSubject}
+                                                                    onChange={(e) => setEditSubject(e.target.value)}
+                                                                />
+                                                                <textarea
+                                                                    className="w-full bg-white border border-indigo-200 rounded px-2 py-1.5 text-xs text-slate-700 outline-none focus:border-indigo-500 min-h-[60px] resize-none"
+                                                                    placeholder="Conteúdo"
+                                                                    value={editTopic}
+                                                                    onChange={(e) => setEditTopic(e.target.value)}
+                                                                />
+                                                                <div className="flex gap-2">
+                                                                    <button onClick={handleSaveEdit} className="bg-emerald-600 text-white px-3 py-1 rounded text-[10px] font-bold flex items-center gap-1 hover:bg-emerald-700 transition-colors">
+                                                                        <Check size={12} /> Salvar
+                                                                    </button>
+                                                                    <button onClick={() => setEditingLesson(null)} className="bg-slate-200 text-slate-600 px-3 py-1 rounded text-[10px] font-bold flex items-center gap-1 hover:bg-slate-300 transition-colors">
+                                                                        <X size={12} /> Cancelar
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <>
+                                                                <div className="flex items-center gap-2 mb-1">
+                                                                    <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 truncate max-w-[200px]">
+                                                                        {lesson.subject}
+                                                                    </span>
+                                                                </div>
+                                                                <p className="text-sm text-slate-700 leading-relaxed">
+                                                                    {lesson.topic || <span className="text-slate-400 italic">Sem descrição do conteúdo.</span>}
+                                                                </p>
+                                                            </>
+                                                        )}
+                                                    </div>
+
+                                                    {!isEditing && (
+                                                        <div className="flex gap-1 items-start opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            <button
+                                                                onClick={() => handleStartEdit(dayRecord.date, lesson)}
+                                                                className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-white rounded transition-all"
+                                                                title="Editar Conteúdo"
+                                                            >
+                                                                <Edit2 size={16} />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleDeleteLesson(dayRecord.date, lesson.index)}
+                                                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-white rounded transition-all"
+                                                                title="Excluir Aula"
+                                                            >
+                                                                <Trash2 size={16} />
+                                                            </button>
+                                                        </div>
+                                                    )}
                                                 </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex items-center gap-2 mb-1"><span className="text-xs font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 truncate max-w-[200px]">{lesson.subject}</span></div>
-                                                    <p className="text-sm text-slate-700 leading-relaxed">{lesson.topic || <span className="text-slate-400 italic">Sem descrição do conteúdo.</span>}</p>
-                                                </div>
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             </div>
@@ -132,6 +250,10 @@ const LessonDiary: React.FC<Props> = () => {
                     )}
                 </div>
             </div>
+
+            <datalist id="registered-subjects">
+                {registeredSubjects.map(s => <option key={s} value={s} />)}
+            </datalist>
         </div>
     );
 };
