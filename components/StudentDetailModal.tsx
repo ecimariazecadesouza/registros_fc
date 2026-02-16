@@ -5,21 +5,22 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, L
 import { useSchool } from '../context/SchoolContext';
 
 interface Props {
-    student: Student | null;
-    studentsList: Student[];
-    onSelectStudent: (s: Student) => void;
     onClose: () => void;
-    year: number;
 }
 
 const StudentDetailModal: React.FC<Props> = ({
-    student,
-    studentsList,
-    onSelectStudent,
-    onClose,
-    year
+    onClose
 }) => {
-    const { attendance, bimesters, dailyLessonConfig, lessonSubjects } = useSchool();
+    const {
+        selectedStudent: student,
+        classStudents: studentsList,
+        setSelectedStudent: onSelectStudent,
+        year,
+        attendance,
+        bimesters,
+        dailyLessonConfig,
+        lessonSubjects
+    } = useSchool();
 
     // Handle Keyboard Navigation
     useEffect(() => {

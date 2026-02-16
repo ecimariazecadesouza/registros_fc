@@ -1,10 +1,10 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import {
     Student, ClassGroup, ClassAttendance, AttendanceStatus,
     EnrollmentStatus, PendingChange, Holiday, BimesterConfig
 } from '../types';
 import { api, transformAttendanceFromApi, transformConfigFromApi } from '../services/api';
-import { BIMESTERS } from '../constants';
+import { BIMESTERS, CURRENT_YEAR } from '../constants';
 
 interface SchoolContextType {
     classes: ClassGroup[];
@@ -21,7 +21,21 @@ interface SchoolContextType {
     pendingChanges: PendingChange[];
     registeredSubjects: string[];
 
+    // UI state
+    year: number;
+    month: number;
+    selectedClassId: string;
+    statusFilter: EnrollmentStatus | 'ALL';
+    selectedStudent: Student | null;
+    dateList: string[];
+    classStudents: Student[];
+
     // Actions
+    setYear: (year: number) => void;
+    setMonth: (month: number) => void;
+    setSelectedClassId: (id: string) => void;
+    setStatusFilter: (filter: EnrollmentStatus | 'ALL') => void;
+    setSelectedStudent: (student: Student | null) => void;
     refreshData: (silent?: boolean) => Promise<void>;
     updateStudentStatus: (studentId: string, newStatus: EnrollmentStatus) => Promise<void>;
     toggleAttendance: (studentId: string, date: string, lessonIndex: number, classId: string, forcedStatus?: AttendanceStatus) => void;
@@ -59,6 +73,13 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const [pendingChanges, setPendingChanges] = useState<PendingChange[]>([]);
     const [registeredSubjects, setRegisteredSubjects] = useState<string[]>([]);
 
+    // --- UI State ---
+    const [year, setYear] = useState<number>(CURRENT_YEAR);
+    const [month, setMonth] = useState<number>(new Date().getMonth());
+    const [selectedClassId, setSelectedClassId] = useState<string>('');
+    const [statusFilter, setStatusFilter] = useState<EnrollmentStatus | 'ALL'>('ALL');
+    const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+
     useEffect(() => {
         const handleOnline = () => setIsOnline(true);
         const handleOffline = () => setIsOnline(false);
@@ -78,6 +99,10 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             setAllStudents(data.students || []);
             setAttendance(transformAttendanceFromApi(data.attendance || []));
             setBimesters(data.bimesters?.length ? data.bimesters : BIMESTERS);
+
+            if (!selectedClassId && data.classes?.length > 0) {
+                setSelectedClassId(data.classes[0].id);
+            }
 
             if (data.config) {
                 const configMap = transformConfigFromApi(data.config);
@@ -104,11 +129,29 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         } finally {
             if (!silent) setIsLoading(false);
         }
-    }, []);
+    }, [selectedClassId]);
 
     useEffect(() => {
         loadData();
     }, [loadData]);
+
+    // --- Derived UI Data ---
+    const dateList = useMemo(() => {
+        const days = new Date(year, month + 1, 0).getDate();
+        const dates: string[] = [];
+        for (let i = 1; i <= days; i++) {
+            dates.push(`${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`);
+        }
+        return dates;
+    }, [year, month]);
+
+    const classStudents = useMemo(() => {
+        let filtered = allStudents.filter(s => s.classId === selectedClassId);
+        if (statusFilter !== 'ALL') {
+            filtered = filtered.filter(s => s.status === statusFilter);
+        }
+        return filtered.sort((a, b) => a.name.localeCompare(b.name));
+    }, [allStudents, selectedClassId, statusFilter]);
 
     const toggleAttendance = (studentId: string, date: string, lessonIndex: number, classId: string, forcedStatus?: AttendanceStatus) => {
         const configKey = classId + '_' + date;
@@ -153,8 +196,8 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         });
     };
 
-    const bulkAttendanceUpdate = (date: string, lessonIndex: number, status: AttendanceStatus, classId: string, classStudents: Student[]) => {
-        classStudents.forEach(student => {
+    const bulkAttendanceUpdate = (date: string, lessonIndex: number, status: AttendanceStatus, classId: string, classStudentsArr: Student[]) => {
+        classStudentsArr.forEach(student => {
             if (student.status !== EnrollmentStatus.ACTIVE) return;
             const studentRecord = attendance[student.id] || {};
             const currentStatus = (studentRecord[date] && studentRecord[date][lessonIndex]) || AttendanceStatus.UNDEFINED;
@@ -190,18 +233,18 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
 
     const updateStudent = async (updatedStudent: Student) => {
-        setAllStudents(prev => prev.map(s => s.id === updatedStudent.id ? updatedStudent : s));
-        if (isOnline) await api.saveStudent(updatedStudent);
+        setAllStudents(prev => prev.map(s => s.id === updatedStudent.id ? { ...s, ...updatedStudent } : s));
+        if (isOnline) await api.saveStudent({ ...allStudents.find(s => s.id === updatedStudent.id), ...updatedStudent } as Student);
     };
 
-    const deleteStudent = async (id: string) => {
-        setAllStudents(prev => prev.filter(s => s.id !== id));
+    const deleteStudent = async (studentId: string) => {
+        setAllStudents(prev => prev.filter(s => s.id !== studentId));
         setAttendance(prev => {
             const newAtt = { ...prev };
-            delete newAtt[id];
+            delete newAtt[studentId];
             return newAtt;
         });
-        if (isOnline) await api.deleteStudent(id);
+        if (isOnline) await api.deleteStudent(studentId);
     };
 
     const batchAddStudents = async (names: string[], classId: string, status: EnrollmentStatus) => {
@@ -266,6 +309,8 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         <SchoolContext.Provider value={{
             classes, allStudents, attendance, bimesters, holidays, dailyLessonConfig,
             lessonSubjects, lessonTopics, isOnline, isSaving, isLoading, pendingChanges, registeredSubjects,
+            year, month, selectedClassId, statusFilter, selectedStudent, dateList, classStudents,
+            setYear, setMonth, setSelectedClassId, setStatusFilter, setSelectedStudent,
             refreshData: loadData, updateStudentStatus: (sid, s) => updateStudent({ id: sid, status: s } as Student),
             toggleAttendance, bulkAttendanceUpdate, saveChanges, addStudent, updateStudent, deleteStudent,
             batchAddStudents, createClass, updateClass, deleteClass, updateBimesterConfig, saveBimesters,

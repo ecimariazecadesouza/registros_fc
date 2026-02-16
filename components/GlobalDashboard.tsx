@@ -5,12 +5,10 @@ import { AlertTriangle, TrendingUp, Users, Calendar, Filter, UserCheck, UserMinu
 import { ENROLLMENT_COLORS } from '../constants';
 import { useSchool } from '../context/SchoolContext';
 
-interface Props {
-    year: number;
-}
+interface Props { }
 
-const GlobalDashboard: React.FC<Props> = ({ year }) => {
-    const { allStudents: students, classes, attendance, bimesters } = useSchool();
+const GlobalDashboard: React.FC<Props> = () => {
+    const { allStudents: students, classes, attendance, bimesters, year } = useSchool();
     const [classFilter, setClassFilter] = useState('ALL');
 
     const filteredStudents = useMemo(() => {

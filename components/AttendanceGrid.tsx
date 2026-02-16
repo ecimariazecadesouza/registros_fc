@@ -5,21 +5,16 @@ import { Check, X, Clock, ChevronDown, CheckCheck, Loader2 } from 'lucide-react'
 import { useSchool } from '../context/SchoolContext';
 
 interface AttendanceGridProps {
-  classId: string;
-  students: Student[];
-  dates: string[];
   onSelectStudent: (student: Student) => void;
   isLocked?: boolean;
 }
 
 const AttendanceGrid: React.FC<AttendanceGridProps> = ({
-  classId,
-  students,
-  dates,
   onSelectStudent,
   isLocked = false
 }) => {
   const {
+    selectedClassId: classId, classStudents: students, dateList: dates,
     attendance, holidays, dailyLessonConfig, lessonSubjects, lessonTopics,
     registeredSubjects, pendingChanges, toggleAttendance, bulkAttendanceUpdate,
     updateLessonConfig, updateStudentStatus

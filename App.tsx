@@ -24,6 +24,8 @@ const App: React.FC = () => {
     const {
         classes, allStudents, attendance, bimesters, holidays, dailyLessonConfig,
         lessonSubjects, lessonTopics, isOnline, isSaving, isLoading, pendingChanges, registeredSubjects,
+        year, month, selectedClassId, statusFilter, selectedStudent, classStudents, dateList,
+        setYear, setMonth, setSelectedClassId, setStatusFilter, setSelectedStudent,
         refreshData, updateStudentStatus, toggleAttendance, bulkAttendanceUpdate, saveChanges,
         addStudent, updateStudent, deleteStudent, batchAddStudents, createClass, updateClass, deleteClass,
         updateBimesterConfig, saveBimesters, updateLessonConfig, saveSchoolSubjects, saveHolidays
@@ -35,25 +37,13 @@ const App: React.FC = () => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
     const [viewMode, setViewMode] = useState<ViewMode>('CLASS');
-    const [selectedClassId, setSelectedClassId] = useState<string>('');
-    const [year, setYear] = useState<number>(CURRENT_YEAR);
-    const [month, setMonth] = useState<number>(new Date().getMonth());
 
-    const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
     const [isAddingClass, setIsAddingClass] = useState(false);
     const [isConfigBimesters, setIsConfigBimesters] = useState(false);
     const [classToDelete, setClassToDelete] = useState<ClassGroup | null>(null);
     const [editingClassId, setEditingClassId] = useState<string | null>(null);
     const [editClassName, setEditClassName] = useState('');
-    const [statusFilter, setStatusFilter] = useState<EnrollmentStatus | 'ALL'>('ALL');
     const [newEntryName, setNewEntryName] = useState('');
-
-    // --- INITIAL SELECTION ---
-    useEffect(() => {
-        if (!selectedClassId && classes.length > 0) {
-            setSelectedClassId(classes[0].id);
-        }
-    }, [classes, selectedClassId]);
 
     // Close sidebar when changing view on mobile
     useEffect(() => {
@@ -62,24 +52,6 @@ const App: React.FC = () => {
 
     // --- DERIVED DATA ---
     const currentClass = useMemo(() => classes.find(c => c.id === selectedClassId), [classes, selectedClassId]);
-
-    const classStudents = useMemo(() => {
-        if (!currentClass) return [];
-        let filtered = allStudents.filter(s => s.classId === currentClass.id);
-        if (statusFilter !== 'ALL') {
-            filtered = filtered.filter(s => s.status === statusFilter);
-        }
-        return filtered.sort((a, b) => a.name.localeCompare(b.name));
-    }, [currentClass, allStudents, statusFilter]);
-
-    const dateList = useMemo(() => {
-        const days = new Date(year, month + 1, 0).getDate();
-        const dates: string[] = [];
-        for (let i = 1; i <= days; i++) {
-            dates.push(`${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`);
-        }
-        return dates;
-    }, [year, month]);
 
     // --- HANDLERS ---
     const handleStartEditClass = (c: ClassGroup) => {
@@ -448,26 +420,17 @@ const App: React.FC = () => {
 
 
                         <AttendanceGrid
-                            classId={selectedClassId}
-                            dates={dateList}
                             onSelectStudent={setSelectedStudent}
                         />
                     </main>
                 ) : viewMode === 'STUDENTS' ? (
-                    <StudentManager
-                        students={classStudents}
-                    />
+                    <StudentManager />
                 ) : viewMode === 'REPORTS' ? (
                     <ReportsDashboard />
                 ) : viewMode === 'DIARY' ? (
-                    <LessonDiary
-                        year={year}
-                        month={month}
-                    />
+                    <LessonDiary />
                 ) : (
-                    <GlobalDashboard
-                        year={year}
-                    />
+                    <GlobalDashboard />
                 )}
             </div>
 
@@ -618,10 +581,6 @@ const App: React.FC = () => {
             {/* Detail Modal */}
             {selectedStudent && (
                 <StudentDetailModal
-                    student={selectedStudent}
-                    studentsList={classStudents}
-                    onSelectStudent={setSelectedStudent}
-                    year={year}
                     onClose={() => setSelectedStudent(null)}
                 />
             )}

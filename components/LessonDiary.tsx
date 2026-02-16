@@ -2,16 +2,10 @@ import React, { useState, useMemo } from 'react';
 import { BookOpen, Calendar, FileText, Search, GraduationCap, ChevronDown, Filter } from 'lucide-react';
 import { useSchool } from '../context/SchoolContext';
 
-interface Props {
-    year: number;
-    month: number; // 0-11
-}
+interface Props { }
 
-const LessonDiary: React.FC<Props> = ({
-    year,
-    month
-}) => {
-    const { classes, dailyLessonConfig, lessonSubjects, lessonTopics, registeredSubjects } = useSchool();
+const LessonDiary: React.FC<Props> = () => {
+    const { classes, dailyLessonConfig, lessonSubjects, lessonTopics, registeredSubjects, year, month } = useSchool();
     const [selectedClassId, setSelectedClassId] = useState<string>(classes[0]?.id || '');
     const [selectedSubject, setSelectedSubject] = useState<string>('ALL');
     const [searchTerm, setSearchTerm] = useState('');
