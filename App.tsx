@@ -110,10 +110,6 @@ const App: React.FC = () => {
             <SchoolConfigModal
                 isOpen={isSchoolConfigOpen}
                 onClose={() => setIsSchoolConfigOpen(false)}
-                subjects={registeredSubjects}
-                holidays={holidays}
-                onSaveSubjects={saveSchoolSubjects}
-                onSaveHolidays={saveHolidays}
             />
 
             {/* Mobile Sidebar Overlay */}
@@ -289,7 +285,7 @@ const App: React.FC = () => {
                         </button>
                     )}
 
-                    <div className="mt-8 px-6 pb-4">
+                    <div className="mt-8 px-6 pb-4 space-y-3">
                         <button
                             onClick={() => setIsConfigBimesters(true)}
                             className="w-full flex items-center justify-between p-4 bg-slate-900/50 hover:bg-slate-900 rounded-xl border border-slate-800/50 transition-all text-slate-300 group"
@@ -299,6 +295,17 @@ const App: React.FC = () => {
                                 <span className="font-semibold text-sm group-hover:text-white transition-colors">Bimestres</span>
                             </div>
                             <CalendarRange size={18} className="text-slate-600 group-hover:text-indigo-400 transition-colors" />
+                        </button>
+
+                        <button
+                            onClick={() => setIsSchoolConfigOpen(true)}
+                            className="w-full flex items-center justify-between p-4 bg-slate-900/50 hover:bg-slate-900 rounded-xl border border-slate-800/50 transition-all text-slate-300 group"
+                        >
+                            <div className="grid text-left">
+                                <span className="text-xs font-bold text-slate-500 uppercase tracking-widest leading-none mb-1">Configuração</span>
+                                <span className="font-semibold text-sm group-hover:text-white transition-colors">Disciplinas & Feriados</span>
+                            </div>
+                            <BookOpen size={18} className="text-slate-600 group-hover:text-indigo-400 transition-colors" />
                         </button>
                     </div>
                 </div>
