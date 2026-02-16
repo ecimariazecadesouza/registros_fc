@@ -218,6 +218,14 @@ export const api = {
             ...data,
             students: safeStudents
         });
+    },
+
+    async saveDailyLessonConfig(date: string, activeIndices: number[], classId: string) {
+        return fetchGas('saveDailyLessonConfig', { date, activeIndices, classId });
+    },
+
+    async saveLessonContents(date: string, subjects: Record<number, string>, topics: Record<number, string>, classId: string) {
+        return fetchGas('saveLessonContents', { date, subjects, topics, classId });
     }
 };
 

@@ -7,9 +7,13 @@ if (!rootElement) {
   throw new Error("Could not find root element to mount to");
 }
 
-const root = ReactDOM.createRoot(rootElement);
+import { SchoolProvider } from './context/SchoolContext';
+
+const root = ReactDOM.createRoot(document.getElementById('root') as HTMLElement);
 root.render(
   <React.StrictMode>
-    <App />
+    <SchoolProvider>
+      <App />
+    </SchoolProvider>
   </React.StrictMode>
 );
