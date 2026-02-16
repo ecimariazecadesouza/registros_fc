@@ -169,6 +169,22 @@ const AttendanceGrid: React.FC<AttendanceGridProps> = ({
                                       <div className="flex items-center gap-2">
                                         <button
                                           onClick={() => {
+                                            const isRemoving = isActive;
+                                            if (isRemoving) {
+                                              // Check if any student has attendance for this lesson
+                                              const hasAttendance = students.some(s => {
+                                                const record = attendance[s.id]?.[date];
+                                                return record && record[idx] && record[idx] !== AttendanceStatus.UNDEFINED;
+                                              });
+
+                                              if (hasAttendance) {
+                                                const confirm = window.confirm(
+                                                  `Atenção: Existem registros de frequência para a ${idx + 1}ª aula. \n\nAo desativar esta aula, TODA a frequência marcada para ela será excluída permanentemente. \n\nDeseja continuar?`
+                                                );
+                                                if (!confirm) return;
+                                              }
+                                            }
+
                                             const newIndices = isActive ? activeIndices.filter(x => x !== idx) : [...activeIndices, idx].sort((a, b) => a - b);
                                             handleConfigSave(date, newIndices);
                                           }}

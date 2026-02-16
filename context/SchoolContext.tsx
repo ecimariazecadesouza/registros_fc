@@ -286,9 +286,49 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     const updateLessonConfig = async (date: string, activeIndices: number[], subjects: Record<number, string>, topics: Record<number, string>, classId: string) => {
         const configKey = classId + '_' + date;
+        const previousIndices = dailyLessonConfig[configKey] || dailyLessonConfig[date] || [0];
+
+        // Find indices that were removed
+        const removedIndices = previousIndices.filter(idx => !activeIndices.includes(idx));
+
         setDailyLessonConfig(prev => ({ ...prev, [configKey]: activeIndices }));
         setLessonSubjects(prev => ({ ...prev, [configKey]: subjects }));
         setLessonTopics(prev => ({ ...prev, [configKey]: topics }));
+
+        // Cascade: Reset attendance for removed indices
+        if (removedIndices.length > 0) {
+            const studentsInClass = allStudents.filter(s => s.classId === classId);
+            const batchChanges: PendingChange[] = [];
+
+            setAttendance(prev => {
+                const newAttendance = { ...prev };
+                studentsInClass.forEach(student => {
+                    const studentRecords = { ...(newAttendance[student.id] || {}) };
+                    const dayStatuses = [...(studentRecords[date] || [])];
+
+                    removedIndices.forEach(idx => {
+                        if (dayStatuses[idx]) {
+                            dayStatuses[idx] = AttendanceStatus.UNDEFINED;
+                            batchChanges.push({
+                                studentId: student.id,
+                                date,
+                                lessonIndex: idx,
+                                status: AttendanceStatus.UNDEFINED
+                            });
+                        }
+                    });
+
+                    studentRecords[date] = dayStatuses;
+                    newAttendance[student.id] = studentRecords;
+                });
+                return newAttendance;
+            });
+
+            if (isOnline && batchChanges.length > 0) {
+                await api.saveAttendanceBatch(batchChanges);
+            }
+        }
+
         if (isOnline) {
             await api.saveDailyLessonConfig(date, activeIndices, classId);
             await api.saveLessonContents(date, subjects, topics, classId);
