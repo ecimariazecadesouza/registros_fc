@@ -55,7 +55,7 @@ const AttendanceGrid: React.FC<AttendanceGridProps> = ({
     dates.forEach(date => {
       const statuses = record[date] || [];
       const configKey = `${classId}_${date}`;
-      const activeIndices = dailyLessonConfig[configKey] || dailyLessonConfig[date] || [0];
+      const activeIndices = dailyLessonConfig[configKey] || dailyLessonConfig[date] || [];
 
       activeIndices.forEach(idx => {
         const status = statuses[idx];
@@ -132,7 +132,7 @@ const AttendanceGrid: React.FC<AttendanceGridProps> = ({
                 const isWeekend = weekDay === 'sáb' || weekDay === 'dom';
                 const holiday = getHoliday(date);
                 const configKey = `${classId}_${date}`;
-                const activeIndices = dailyLessonConfig[configKey] || dailyLessonConfig[date] || [0];
+                const activeIndices = dailyLessonConfig[configKey] || dailyLessonConfig[date] || [];
                 const isOpen = openConfigDate === date;
 
                 const headerClass = holiday ? 'bg-amber-100 text-amber-800 border-amber-200' : isWeekend ? 'bg-slate-700 text-slate-300' : '';
@@ -262,7 +262,7 @@ const AttendanceGrid: React.FC<AttendanceGridProps> = ({
                     const holiday = getHoliday(date);
                     const isStudentLocked = isLocked || student.status === EnrollmentStatus.DROPOUT || student.status === EnrollmentStatus.TRANSFERRED;
                     const configKey = `${classId}_${date}`;
-                    const activeIndices = dailyLessonConfig[configKey] || dailyLessonConfig[date] || [0];
+                    const activeIndices = dailyLessonConfig[configKey] || dailyLessonConfig[date] || [];
                     const subjects = lessonSubjects[configKey] || lessonSubjects[date] || {};
                     const topics = lessonTopics[configKey] || lessonTopics[date] || {};
 

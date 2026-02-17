@@ -286,7 +286,7 @@ export const SchoolProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     const updateLessonConfig = async (date: string, activeIndices: number[], subjects: Record<number, string>, topics: Record<number, string>, classId: string) => {
         const configKey = classId + '_' + date;
-        const previousIndices = dailyLessonConfig[configKey] || dailyLessonConfig[date] || [0];
+        const previousIndices = dailyLessonConfig[configKey] || dailyLessonConfig[date] || [];
 
         // Find indices that were removed
         const removedIndices = previousIndices.filter(idx => !activeIndices.includes(idx));
